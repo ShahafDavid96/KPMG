@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This repository contains two AI-powered systems developed for KPMG:
+This repository contains two AI-powered systems developed :
 
 1. **NII (National Insurance Institute) Forms Extractor** - Document processing for Israeli insurance forms
 2. **Healthcare Chatbot** - Medical services information system for Israeli health funds
