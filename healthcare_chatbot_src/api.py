@@ -12,6 +12,7 @@ from utils import (
     extract_user_info_from_conversation, 
     is_user_info_complete, 
     format_user_info_for_prompt,
+    format_user_info_for_prompt_context,
     format_conversation_history,
     get_error_message,
     safe_log_text
