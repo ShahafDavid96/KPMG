@@ -126,21 +126,37 @@ if uploaded_file is not None:
                 st.write("**Accuracy Rule Details:**")
                 
                 details = validation_results.get("accuracy_details", {})
+                detailed_results = validation_results.get("accuracy_details_detailed", {})
+                
                 if not details:
                     st.warning("⚠️ No accuracy checks were performed.")
                 else:
                     for check_name, is_passed in details.items():
-                        icon = "✅" if is_passed else "❌"
-                        color = "green" if is_passed else "red"
-                        st.markdown(f"- {icon} **{check_name}:** <span style='color: {color}'>{'Passed' if is_passed else 'Failed'}</span>", unsafe_allow_html=True)
-                
-                # Display Data Fixes Applied
-                fixes_applied = validation_results.get("data_fixes_applied", [])
-                if fixes_applied:
-                    st.write("---")
-                    st.info("🔧 **Automatic Data Fixes Applied:**")
-                    for fix in fixes_applied:
-                        st.markdown(f"- **{fix['field']}**: `{fix['original']}` → `{fix['fixed']}` ({fix['fix_type']})")
+                        if check_name in detailed_results:
+                            detailed = detailed_results[check_name]
+                            
+                            if is_passed:
+                                # Show passed validation - just "Passed" with no extra details
+                                st.success(f"✅ **{check_name}** - Passed")
+                            else:
+                                # Show failed validation with specific violations
+                                st.error(f"❌ **{check_name}** - Failed")
+                                
+                                # Show the specific violations
+                                violations = detailed.get("violations", [])
+                                if violations:
+                                    st.write("**Violations:**")
+                                    for violation in violations:
+                                        st.write(f"• {violation}")
+                                
+                                # Show additional details if available
+                                if detailed.get("details"):
+                                    st.info(f"Details: {detailed['details']}")
+                        else:
+                            # Fallback for old format
+                            icon = "✅" if is_passed else "❌"
+                            color = "green" if is_passed else "red"
+                            st.markdown(f"- {icon} **{check_name}:** <span style='color: {color}'>{'Passed' if is_passed else 'Failed'}</span>", unsafe_allow_html=True)
 
     except Exception as e:
         st.error("❌ An error occurred during processing!")

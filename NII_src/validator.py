@@ -3,8 +3,29 @@ import json
 import re
 from pydantic import ValidationError
 import config
+from typing import Dict, List, Any, Tuple
 
-# --- Individual Rule-Based Check Functions ---
+# --- Enhanced Validation Result Structure ---
+
+class ValidationRule:
+    """Represents a specific validation rule with detailed checking"""
+    
+    def __init__(self, name: str, description: str, check_function, field_path: str = None):
+        self.name = name
+        self.description = description
+        self.check_function = check_function
+        self.field_path = field_path
+
+class ValidationResult:
+    """Detailed validation result for a single rule"""
+    
+    def __init__(self, rule_name: str, passed: bool, details: str = "", violations: List[str] = None):
+        self.rule_name = rule_name
+        self.passed = passed
+        self.details = details
+        self.violations = violations or []
+
+# --- Individual Rule-Based Check Functions with Detailed Results ---
 
 def normalize_phone(phone_number: str) -> str:
     """Normalizes phone numbers to standard format."""
@@ -57,146 +78,366 @@ def fix_landline_phone(phone_number: str) -> str:
     
     return clean_phone
 
-def check_id_number(data: config.FormSchemaEN) -> bool:
-    """Checks if ID number is exactly 9 digits."""
+def check_id_number_detailed(data: config.FormSchemaEN) -> ValidationResult:
+    """Detailed ID number validation with specific rule violations."""
+    rule_name = "ID Number Format"
+    violations = []
+    
     if not data.idNumber:
-        return False  # Empty ID number should fail validation
+        return ValidationResult(rule_name, False, "ID number is empty", ["Field is empty"])
     
-    # Take only the first 9 digits if there are more
-    clean_id = re.sub(r'\D', '', data.idNumber)  # Remove non-digits
-    if len(clean_id) > 9:
-        clean_id = clean_id[:9]  # Take only first 9 digits
+    # Clean the ID number
+    clean_id = re.sub(r'\D', '', data.idNumber)
     
-    # Check if it's exactly 9 digits
-    return bool(re.fullmatch(r'\d{9}', clean_id))
+    # Rule 1: Must contain only digits
+    if not clean_id.isdigit():
+        violations.append("Contains non-digit characters")
+    
+    # Rule 2: Must be exactly 9 digits
+    if len(clean_id) < 9:
+        violations.append(f"Too short: {len(clean_id)} digits (required: 9)")
+    elif len(clean_id) > 9:
+        violations.append(f"Too long: {len(clean_id)} digits (required: 9)")
+    
+    # Rule 3: Must not be all zeros
+    if clean_id == "000000000":
+        violations.append("Cannot be all zeros")
+    
+    passed = len(violations) == 0
+    details = f"ID: {data.idNumber} → Cleaned: {clean_id[:9] if len(clean_id) >= 9 else clean_id}"
+    
+    return ValidationResult(rule_name, passed, details, violations)
 
-def check_mobile_phone(data: config.FormSchemaEN) -> bool:
-    """Checks mobile phone format (10 digits, starts with 05)."""
+def check_mobile_phone_detailed(data: config.FormSchemaEN) -> ValidationResult:
+    """Detailed mobile phone validation with specific rule violations."""
+    rule_name = "Mobile Phone Format"
+    violations = []
+    
     if not data.mobilePhone:
-        return False  # Empty mobile phone should fail validation
+        return ValidationResult(rule_name, False, "Mobile phone is empty", ["Field is empty"])
     
-    # Fix the phone number first
+    # Clean the phone number
+    clean_phone = re.sub(r'\D', '', data.mobilePhone)
+    
+    # Rule 1: Must contain only digits
+    if not clean_phone.isdigit():
+        violations.append("Contains non-digit characters")
+    
+    # Rule 2: Must be at least 9 digits
+    if len(clean_phone) < 9:
+        violations.append(f"Too short: {len(clean_phone)} digits (minimum: 9)")
+    
+    # Rule 3: Must start with 05 for 10+ digits
+    if len(clean_phone) >= 10:
+        if not clean_phone.startswith('05'):
+            violations.append(f"Must start with '05' for 10+ digits, found: {clean_phone[:2]}")
+    
+    # Rule 4: Must be exactly 10 digits when formatted
     fixed_phone = fix_mobile_phone(data.mobilePhone)
+    if len(fixed_phone) != 10:
+        violations.append(f"Fixed length: {len(fixed_phone)} digits (required: 10)")
     
-    # Check if it's valid after fixing - must be 10 digits and start with 05
-    return len(fixed_phone) == 10 and fixed_phone.startswith('05')
+    passed = len(violations) == 0
+    details = f"Phone: {data.mobilePhone} → Fixed: {fixed_phone}"
+    
+    return ValidationResult(rule_name, passed, details, violations)
 
-def check_landline_phone(data: config.FormSchemaEN) -> bool:
-    """Checks landline phone format (9 digits, starts with 0)."""
+def check_landline_phone_detailed(data: config.FormSchemaEN) -> ValidationResult:
+    """Detailed landline phone validation with specific rule violations."""
+    rule_name = "Landline Phone Format"
+    violations = []
+    
     if not data.landlinePhone:
-        return False  # Empty landline phone should fail validation
+        return ValidationResult(rule_name, False, "Landline phone is empty", ["Field is empty"])
     
-    # Fix the phone number first
+    # Clean the phone number
+    clean_phone = re.sub(r'\D', '', data.landlinePhone)
+    
+    # Rule 1: Must contain only digits
+    if not clean_phone.isdigit():
+        violations.append("Contains non-digit characters")
+    
+    # Rule 2: Must be at least 8 digits
+    if len(clean_phone) < 8:
+        violations.append(f"Too short: {len(clean_phone)} digits (minimum: 8)")
+    
+    # Rule 3: Must start with 0 for 9+ digits
+    if len(clean_phone) >= 9:
+        if not clean_phone.startswith('0'):
+            violations.append(f"Must start with '0' for 9+ digits, found: {clean_phone[0]}")
+    
+    # Rule 4: Must be exactly 9 digits when formatted
     fixed_phone = fix_landline_phone(data.landlinePhone)
+    if len(fixed_phone) != 9:
+        violations.append(f"Fixed length: {len(fixed_phone)} digits (required: 9)")
     
-    # Check if it's valid after fixing - must be 9 digits and start with 0
-    return len(fixed_phone) == 9 and fixed_phone.startswith('0')
+    passed = len(violations) == 0
+    details = f"Phone: {data.landlinePhone} → Fixed: {fixed_phone}"
+    
+    return ValidationResult(rule_name, passed, details, violations)
 
-def check_postal_code(data: config.FormSchemaEN) -> bool:
-    """Checks if postal code is a 7-digit number."""
+def check_postal_code_detailed(data: config.FormSchemaEN) -> ValidationResult:
+    """Detailed postal code validation with specific rule violations."""
+    rule_name = "Postal Code Format"
+    violations = []
+    
     if not data.address.postalCode:
-        return False  # Empty postal code should fail validation
-    return bool(re.fullmatch(r'\d{7}', data.address.postalCode))
+        return ValidationResult(rule_name, False, "Postal code is empty", ["Field is empty"])
+    
+    # Clean the postal code
+    clean_postal = re.sub(r'\D', '', data.address.postalCode)
+    
+    # Rule 1: Must contain only digits
+    if not clean_postal.isdigit():
+        violations.append("Contains non-digit characters")
+    
+    # Rule 2: Must be exactly 7 digits
+    if len(clean_postal) < 7:
+        violations.append(f"Too short: {len(clean_postal)} digits (required: 7)")
+    elif len(clean_postal) > 7:
+        violations.append(f"Too long: {len(clean_postal)} digits (required: 7)")
+    
+    # Rule 3: Must not be all zeros
+    if clean_postal == "0000000":
+        violations.append("Cannot be all zeros")
+    
+    passed = len(violations) == 0
+    details = f"Postal: {data.address.postalCode} → Cleaned: {clean_postal[:7] if len(clean_postal) >= 7 else clean_postal}"
+    
+    return ValidationResult(rule_name, passed, details, violations)
 
-def check_date_plausibility(date: config.DateModelEN) -> bool:
-    """Checks if date fields are within a plausible range."""
-    if not date.day or not date.month or not date.year:
-        return False  # Incomplete date should fail validation
+def check_date_plausibility_detailed(date_obj) -> ValidationResult:
+    """Detailed date validation with specific rule violations."""
+    rule_name = "Date Plausibility"
+    violations = []
+    
+    if not date_obj or not hasattr(date_obj, 'day') or not hasattr(date_obj, 'month') or not hasattr(date_obj, 'year'):
+        return ValidationResult(rule_name, False, "Date object is invalid", ["Invalid date structure"])
+    
+    day = date_obj.day
+    month = date_obj.month
+    year = date_obj.year
+    
+    # Convert to integers for validation
     try:
-        day = int(date.day)
-        month = int(date.month)
-        year = int(date.year)
-        # Basic plausibility checks
-        return 1 <= day <= 31 and 1 <= month <= 12 and 1900 < year < 2100
+        day_int = int(day) if day else 0
+        month_int = int(month) if month else 0
+        year_int = int(year) if year else 0
     except (ValueError, TypeError):
-        return False
+        violations.append("Date components must be valid numbers")
+        return ValidationResult(rule_name, False, f"Date: {day}/{month}/{year}", violations)
+    
+    # Rule 1: Day must be between 1-31
+    if not (1 <= day_int <= 31):
+        violations.append(f"Invalid day: {day_int} (must be 1-31)")
+    
+    # Rule 2: Month must be between 1-12
+    if not (1 <= month_int <= 12):
+        violations.append(f"Invalid month: {month_int} (must be 1-12)")
+    
+    # Rule 3: Year must be reasonable (1900-2100)
+    if not (1900 <= year_int <= 2100):
+        violations.append(f"Invalid year: {year_int} (must be 1900-2100)")
+    
+    # Rule 4: Specific month-day combinations
+    if month_int in [4, 6, 9, 11] and day_int > 30:
+        violations.append(f"Month {month_int} cannot have day {day_int}")
+    elif month_int == 2:
+        if day_int > 29:
+            violations.append(f"February cannot have day {day_int}")
+        elif day_int == 29 and not (year_int % 4 == 0 and (year_int % 100 != 0 or year_int % 400 == 0)):
+            violations.append(f"February 29 is invalid for non-leap year {year_int}")
+    
+    passed = len(violations) == 0
+    details = f"Date: {day_int}/{month_int}/{year_int}"
+    
+    return ValidationResult(rule_name, passed, details, violations)
 
-def check_time_format(data: config.FormSchemaEN) -> bool:
-    """Checks if time of injury is in HH:MM format."""
+def check_time_format_detailed(data: config.FormSchemaEN) -> ValidationResult:
+    """Detailed time format validation with specific rule violations."""
+    rule_name = "Time Format"
+    violations = []
+    
     if not data.timeOfInjury:
-        return False  # Empty time should fail validation
-    return bool(re.fullmatch(r'\d{1,2}:\d{2}', data.timeOfInjury))
+        return ValidationResult(rule_name, False, "Time is empty", ["Field is empty"])
+    
+    time_str = str(data.timeOfInjury)
+    
+    # Rule 1: Must match HH:MM format
+    if not re.fullmatch(r'\d{1,2}:\d{2}', time_str):
+        violations.append("Must be in HH:MM format")
+    
+    # Rule 2: Hours must be 0-23
+    try:
+        hours, minutes = map(int, time_str.split(':'))
+        if not (0 <= hours <= 23):
+            violations.append(f"Invalid hours: {hours} (must be 0-23)")
+        if not (0 <= minutes <= 59):
+            violations.append(f"Invalid minutes: {minutes} (must be 0-59)")
+    except ValueError:
+        violations.append("Invalid time format")
+    
+    passed = len(violations) == 0
+    details = f"Time: {time_str}"
+    
+    return ValidationResult(rule_name, passed, details, violations)
+
+def check_name_format_detailed(data: config.FormSchemaEN) -> ValidationResult:
+    """Detailed name validation with specific rule violations."""
+    rule_name = "Name Format"
+    violations = []
+    
+    # Check first name
+    if not data.firstName:
+        violations.append("First name is empty")
+    else:
+        # Rule 1: Must contain only letters, spaces, and hyphens
+        if not re.fullmatch(r'^[A-Za-z\u0590-\u05FF\s\-]+$', data.firstName):
+            violations.append("First name contains invalid characters (only letters, spaces, hyphens allowed)")
+        
+        # Rule 2: Must be at least 2 characters
+        if len(data.firstName.strip()) < 2:
+            violations.append("First name too short (minimum 2 characters)")
+        
+        # Rule 3: Must not be all spaces
+        if data.firstName.strip() == "":
+            violations.append("First name cannot be all spaces")
+    
+    # Check last name
+    if not data.lastName:
+        violations.append("Last name is empty")
+    else:
+        # Rule 1: Must contain only letters, spaces, and hyphens
+        if not re.fullmatch(r'^[A-Za-z\u0590-\u05FF\s\-]+$', data.lastName):
+            violations.append("Last name contains invalid characters (only letters, spaces, hyphens allowed)")
+        
+        # Rule 2: Must be at least 2 characters
+        if len(data.lastName.strip()) < 2:
+            violations.append("Last name too short (minimum 2 characters)")
+        
+        # Rule 3: Must not be all spaces
+        if data.lastName.strip() == "":
+            violations.append("Last name cannot be all spaces")
+    
+    passed = len(violations) == 0
+    details = f"Names: {data.firstName} {data.lastName}"
+    
+    return ValidationResult(rule_name, passed, details, violations)
+
+def check_gender_format_detailed(data: config.FormSchemaEN) -> ValidationResult:
+    """Detailed gender validation with specific rule violations."""
+    rule_name = "Gender Format"
+    violations = []
+    
+    if not data.gender:
+        violations.append("Gender is empty")
+    else:
+        gender_lower = str(data.gender).lower().strip()
+        
+        # Rule 1: Must be one of the accepted values
+        accepted_values = ['male', 'female', 'm', 'f', 'זכר', 'נקבה', 'ז', 'נ']
+        if gender_lower not in accepted_values:
+            violations.append(f"Invalid gender value: '{data.gender}' (accepted: male/female/m/f/זכר/נקבה/ז/נ)")
+        
+        # Rule 2: Must not be empty after cleaning
+        if gender_lower == "":
+            violations.append("Gender cannot be empty or all spaces")
+    
+    passed = len(violations) == 0
+    details = f"Gender: {data.gender}"
+    
+    return ValidationResult(rule_name, passed, details, violations)
+
+def check_accident_details_detailed(data: config.FormSchemaEN) -> ValidationResult:
+    """Detailed accident details validation with specific rule violations."""
+    rule_name = "Accident Details"
+    violations = []
+    
+    # Check accident location
+    if hasattr(data, 'accidentLocation') and data.accidentLocation:
+        location = str(data.accidentLocation).strip()
+        if len(location) < 5:
+            violations.append("Accident location too short (minimum 5 characters)")
+        elif len(location) > 200:
+            violations.append("Accident location too long (maximum 200 characters)")
+    
+    # Check accident description
+    if hasattr(data, 'accidentDescription') and data.accidentDescription:
+        description = str(data.accidentDescription).strip()
+        if len(description) < 10:
+            violations.append("Accident description too short (minimum 10 characters)")
+        elif len(description) > 1000:
+            violations.append("Accident description too long (maximum 1000 characters)")
+    
+    # Check injured body part
+    if hasattr(data, 'injuredBodyPart') and data.injuredBodyPart:
+        body_part = str(data.injuredBodyPart).strip()
+        if len(body_part) < 3:
+            violations.append("Injured body part too short (minimum 3 characters)")
+    
+    passed = len(violations) == 0
+    details = "Accident details validated"
+    
+    return ValidationResult(rule_name, passed, details, violations)
+
+# --- Helper Functions ---
 
 def fix_id_number(id_number: str) -> str:
-    """Fixes ID number to always be exactly 9 digits."""
+    """Fixes ID number to exactly 9 digits."""
     if not isinstance(id_number, str):
         return ""
     
-    # Remove all non-digit characters
+    # Remove non-digits and take first 9
     clean_id = re.sub(r'\D', '', id_number)
-    
-    # If it's more than 9 digits, take only the first 9
-    if len(clean_id) > 9:
-        clean_id = clean_id[:9]
-    
-    # If it's less than 9 digits, pad with zeros (or return as is for validation)
-    elif len(clean_id) < 9:
-        # For validation purposes, we'll leave it as is to fail validation
-        pass
-    
-    return clean_id
+    return clean_id[:9] if len(clean_id) >= 9 else clean_id
 
 def fix_postal_code(postal_code: str) -> str:
-    """Fixes postal code to always be exactly 7 digits."""
+    """Fixes postal code to exactly 7 digits."""
     if not isinstance(postal_code, str):
         return ""
     
-    # Remove all non-digit characters
-    clean_code = re.sub(r'\D', '', postal_code)
-    
-    # If it's more than 7 digits, take only the first 7
-    if len(clean_code) > 7:
-        clean_code = clean_code[:7]
-    
-    # If it's less than 7 digits, pad with zeros (or return as is for validation)
-    elif len(clean_code) < 7:
-        # For validation purposes, we'll leave it as is to fail validation
-        pass
-    
-    return clean_code
+    # Remove non-digits and take first 7
+    clean_postal = re.sub(r'\D', '', postal_code)
+    return clean_postal[:7] if len(clean_postal) >= 7 else clean_postal
 
 def fix_time_format(time_str: str) -> str:
-    """Fixes time format to HH:MM format."""
+    """Fixes time format to HH:MM."""
     if not isinstance(time_str, str):
         return ""
     
-    # Remove all non-digit and non-colon characters
-    clean_time = re.sub(r'[^\d:]', '', time_str)
+    # Extract digits and format as HH:MM
+    digits = re.findall(r'\d', time_str)
+    if len(digits) >= 4:
+        hours = int(digits[0] + digits[1]) if len(digits) > 1 else int(digits[0])
+        minutes = int(digits[2] + digits[3]) if len(digits) > 3 else int(digits[2])
+        return f"{hours:02d}:{minutes:02d}"
+    elif len(digits) >= 2:
+        hours = int(digits[0])
+        minutes = int(digits[1])
+        return f"{hours:02d}:{minutes:02d}"
     
-    # Try to extract HH:MM pattern
-    time_match = re.search(r'(\d{1,2}):(\d{2})', clean_time)
-    if time_match:
-        hours = int(time_match.group(1))
-        minutes = int(time_match.group(2))
-        
-        # Validate hours and minutes
-        if 0 <= hours <= 23 and 0 <= minutes <= 59:
-            return f"{hours:02d}:{minutes:02d}"
-    
-    # If no valid pattern found, return original for validation to fail
     return time_str
 
+# --- Main Validation Function ---
 
-# --- Main Validation Orchestrator ---
-
-def validate_extracted_data(json_string):
+def validate_extracted_data(json_string: str) -> Dict[str, Any]:
     """
-    Validates data for schema compliance, completeness, and rule-based accuracy.
+    Validates extracted data and returns detailed results with specific rule violations.
     """
     results = {
         "is_valid_schema": False,
         "completeness_score": 0.0,
         "accuracy_score": 0.0,
-        "validation_errors": [],
         "accuracy_details": {},
-        "data_fixes_applied": [],  # Track any automatic fixes
-        "corrected_data": None,    # Store the corrected data
+        "accuracy_details_detailed": {},  # New: Detailed validation results
+        "data_fixes_applied": [],
+        "corrected_data": None,
+        "validation_errors": []
     }
-
+    
     try:
+        # Parse JSON
         data = json.loads(json_string)
-        # **FIXED: Always expect English keys since form_extractor always returns English keys**
-        # No need to check for Hebrew keys anymore
         is_hebrew = False  # Always use English schema
         
         # 1. Schema Validation (using Pydantic)
@@ -323,25 +564,47 @@ def validate_extracted_data(json_string):
     if field_count > 0:
         results["completeness_score"] = (filled_count / field_count) * 100
 
-    # 4. Accuracy Score (Rule-Based Checks)
-    # The validated_model now has consistent English field names regardless of source language
-    accuracy_checks = {
-        "ID Number Format": check_id_number,
-        "Mobile Phone Format": check_mobile_phone,
-        "Landline Phone Format": check_landline_phone,
-        "Postal Code Format": check_postal_code,
-        "Birth Date Plausibility": lambda d: check_date_plausibility(d.dateOfBirth),
-        "Injury Date Plausibility": lambda d: check_date_plausibility(d.dateOfInjury),
-        "Time of Injury Format": check_time_format,
-    }
+    # 4. Enhanced Accuracy Score with Detailed Rule Checking
+    accuracy_checks = [
+        check_id_number_detailed,
+        check_mobile_phone_detailed,
+        check_landline_phone_detailed,
+        check_postal_code_detailed,
+        lambda d: check_date_plausibility_detailed(d.dateOfBirth),
+        lambda d: check_date_plausibility_detailed(d.dateOfInjury),
+        check_time_format_detailed,
+        check_name_format_detailed,
+        check_gender_format_detailed,
+        check_accident_details_detailed,
+    ]
     
     passed_checks = 0
     total_checks = len(accuracy_checks)
-    for name, func in accuracy_checks.items():
-        is_passed = func(validated_model)
-        results["accuracy_details"][name] = is_passed
-        if is_passed:
-            passed_checks += 1
+    
+    for check_func in accuracy_checks:
+        try:
+            validation_result = check_func(validated_model)
+            
+            # Store both simple pass/fail and detailed results
+            results["accuracy_details"][validation_result.rule_name] = validation_result.passed
+            results["accuracy_details_detailed"][validation_result.rule_name] = {
+                "passed": validation_result.passed,
+                "details": validation_result.details,
+                "violations": validation_result.violations
+            }
+            
+            if validation_result.passed:
+                passed_checks += 1
+                
+        except Exception as e:
+            # Handle any errors in individual checks
+            rule_name = getattr(check_func, '__name__', 'Unknown Rule')
+            results["accuracy_details"][rule_name] = False
+            results["accuracy_details_detailed"][rule_name] = {
+                "passed": False,
+                "details": f"Error during validation: {str(e)}",
+                "violations": ["Validation error occurred"]
+            }
     
     if total_checks > 0:
         results["accuracy_score"] = (passed_checks / total_checks) * 100
