@@ -70,25 +70,27 @@ def extract_info_with_ai_prompt(user_input: str) -> Optional[Dict[str, Any]]:
             logger.error("Azure OpenAI client not available")
             return None
         
-        # Create the extraction prompt
-        extraction_prompt = f"""Given the following user input, extract the user information and return ONLY a valid JSON object with the following structure:
+        # Create the extraction prompt with strict JSON requirements
+        extraction_prompt = f"""Extract user information from the following input and return ONLY a valid JSON object with this exact structure:
 
 {{
-    "name": "string (first and last name)",
-    "id_number": "string (9-digit ID number)",
-    "gender": "string (male/female or זכר/נקבה)",
+    "name": "string (first and last name only, no prefixes like 'היי קוראים לי')",
+    "id_number": "string (exactly 9 digits)",
+    "gender": "string (exactly: 'זכר' or 'נקבה' or 'male' or 'female')",
     "age": "integer (age between 0-120)",
-    "hmo_name": "string (HMO name: מכבי/מאוחדת/כללית or Maccabi/Meuhedet/Clalit)",
-    "hmo_card_number": "string (9-digit card number)",
-    "insurance_tier": "string (Gold/Silver/Bronze or זהב/כסף/ארד)"
+    "hmo_name": "string (exactly: 'מכבי' or 'מאוחדת' or 'כללית' or 'Maccabi' or 'Meuhedet' or 'Clalit')",
+    "hmo_card_number": "string (exactly 9 digits)",
+    "insurance_tier": "string (exactly: 'זהב' or 'כסף' or 'ארד' or 'Gold' or 'Silver' or 'Bronze')"
 }}
 
-Rules:
-1. If a field is not found, set it to null
-2. For name, extract only the actual name (not "היי קוראים לי" or similar phrases)
-3. For HMO name, use only the standard names listed above
-4. For insurance tier, use only the standard tiers listed above
-5. Return ONLY the JSON, no other text
+CRITICAL RULES:
+1. Return ONLY valid JSON, no markdown, no explanations
+2. For name: extract only the actual name, remove phrases like "היי קוראים לי", "קוראים לי", "אני", "שמי"
+3. For gender: use only the exact values listed above
+4. For HMO: use only the exact values listed above  
+5. For insurance tier: use only the exact values listed above
+6. If a field is not found, set it to null
+7. Ensure all string values are properly cleaned and normalized
 
 User input: {user_input}
 
@@ -98,7 +100,7 @@ JSON:"""
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": "You are a helpful assistant that extracts user information from text and returns it in JSON format. Always return valid JSON only."},
+                {"role": "system", "content": "You are a precise data extraction assistant. Always return valid JSON only, with no markdown formatting or additional text. Clean and normalize all extracted values according to the specified rules."},
                 {"role": "user", "content": extraction_prompt}
             ],
             temperature=0.1,  # Low temperature for consistent extraction
@@ -109,91 +111,186 @@ JSON:"""
         response_text = response.choices[0].message.content.strip()
         logger.info(f"AI extraction response: {response_text[:200]}...")
         
-        # Try to parse the JSON response
-        try:
-            # Remove any markdown formatting if present
-            if response_text.startswith("```json"):
-                response_text = response_text[7:]
-            if response_text.endswith("```"):
-                response_text = response_text[:-3]
-            
-            response_text = response_text.strip()
-            
-            # Parse JSON
-            extracted_data = json.loads(response_text)
-            
-            # Validate and clean the extracted data
-            cleaned_data = {}
-            
-            # Clean name - remove extra text
-            if extracted_data.get('name'):
-                name = str(extracted_data['name']).strip()
-                # Remove common prefixes/suffixes
-                name = re.sub(r'^(היי קוראים לי|קוראים לי|אני|שמי)\s*', '', name)
-                name = re.sub(r'\s+(תז|אני בן|זכר|אני בקופת חולים|מספר|זהב).*$', '', name)
-                cleaned_data['name'] = name.strip()
-            
-            # Clean other fields
-            if extracted_data.get('id_number'):
-                cleaned_data['id_number'] = str(extracted_data['id_number']).strip()
-            
-            if extracted_data.get('gender'):
-                gender = str(extracted_data['gender']).strip().lower()
-                # Normalize gender values
-                if gender in ['male', 'm', 'זכר']:
-                    cleaned_data['gender'] = 'זכר'
-                elif gender in ['female', 'f', 'נקבה']:
-                    cleaned_data['gender'] = 'נקבה'
-                else:
-                    cleaned_data['gender'] = extracted_data['gender']
-            
-            if extracted_data.get('age') is not None:
-                try:
-                    age = int(extracted_data['age'])
-                    if 0 <= age <= 120:
-                        cleaned_data['age'] = age
-                except (ValueError, TypeError):
-                    pass
-            
-            if extracted_data.get('hmo_name'):
-                hmo = str(extracted_data['hmo_name']).strip()
-                # Normalize HMO names
-                hmo_lower = hmo.lower()
-                if 'maccabi' in hmo_lower or 'מכבי' in hmo:
-                    cleaned_data['hmo_name'] = 'מכבי'
-                elif 'meuhedet' in hmo_lower or 'מאוחדת' in hmo:
-                    cleaned_data['hmo_name'] = 'מאוחדת'
-                elif 'clalit' in hmo_lower or 'כללית' in hmo:
-                    cleaned_data['hmo_name'] = 'כללית'
-                else:
-                    cleaned_data['hmo_name'] = hmo
-            
-            if extracted_data.get('hmo_card_number'):
-                cleaned_data['hmo_card_number'] = str(extracted_data['hmo_card_number']).strip()
-            
-            if extracted_data.get('insurance_tier'):
-                tier = str(extracted_data['insurance_tier']).strip()
-                # Normalize insurance tiers
-                tier_lower = tier.lower()
-                if 'gold' in tier_lower or 'זהב' in tier:
-                    cleaned_data['insurance_tier'] = 'זהב'
-                elif 'silver' in tier_lower or 'כסף' in tier:
-                    cleaned_data['insurance_tier'] = 'כסף'
-                elif 'bronze' in tier_lower or 'ארד' in tier:
-                    cleaned_data['insurance_tier'] = 'ארד'
-                else:
-                    cleaned_data['insurance_tier'] = tier
-            
-            logger.info(f"Cleaned extracted data: {cleaned_data}")
-            return cleaned_data
-            
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse JSON response: {e}")
-            logger.error(f"Response text: {response_text}")
+        # Clean the response text to extract pure JSON
+        cleaned_response = clean_json_response(response_text)
+        if not cleaned_response:
+            logger.error("Failed to clean JSON response")
             return None
+        
+        # Parse JSON with proper error handling
+        try:
+            extracted_data = json.loads(cleaned_response)
+            logger.info(f"Successfully parsed JSON: {extracted_data}")
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON parsing failed: {e}")
+            logger.error(f"Cleaned response: {cleaned_response}")
+            return None
+        
+        # Validate and normalize the data using structured validation
+        validated_data = validate_and_normalize_extracted_data(extracted_data)
+        if validated_data:
+            logger.info(f"Validated and normalized data: {validated_data}")
+            return validated_data
+        
+        return None
             
     except Exception as e:
         logger.error(f"Error in AI-based extraction: {e}")
+        return None
+
+
+def clean_json_response(response_text: str) -> Optional[str]:
+    """Clean the AI response to extract pure JSON"""
+    try:
+        # Remove markdown code blocks
+        if "```json" in response_text:
+            start = response_text.find("```json") + 7
+            end = response_text.rfind("```")
+            if end > start:
+                response_text = response_text[start:end].strip()
+        elif "```" in response_text:
+            start = response_text.find("```") + 3
+            end = response_text.rfind("```")
+            if end > start:
+                response_text = response_text[start:end].strip()
+        
+        # Remove any leading/trailing text that's not JSON
+        response_text = response_text.strip()
+        
+        # Find the first { and last } to extract JSON object
+        start_brace = response_text.find('{')
+        end_brace = response_text.rfind('}')
+        
+        if start_brace != -1 and end_brace != -1 and end_brace > start_brace:
+            json_text = response_text[start_brace:end_brace + 1]
+            return json_text
+        
+        # If no braces found, try to find JSON-like content
+        if response_text.startswith('{') and response_text.endswith('}'):
+            return response_text
+        
+        logger.error(f"Could not extract JSON from response: {response_text}")
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error cleaning JSON response: {e}")
+        return None
+
+
+def validate_and_normalize_extracted_data(extracted_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Validate extracted data using structured validation - no language conversion needed"""
+    try:
+        # Define valid values for each field (both languages are acceptable)
+        valid_values = {
+            'gender': ['זכר', 'נקבה', 'male', 'female'],
+            'hmo_name': ['מכבי', 'מאוחדת', 'כללית', 'Maccabi', 'Meuhedet', 'Clalit'],
+            'insurance_tier': ['זהב', 'כסף', 'ארד', 'Gold', 'Silver', 'Bronze']
+        }
+        
+        # Simply validate and return the data as-is (no conversion needed)
+        validated_data = {}
+        
+        # Process each field with minimal validation
+        for field, value in extracted_data.items():
+            if value is None:
+                continue
+                
+            if field == 'name':
+                # Clean name by removing common prefixes
+                cleaned_name = clean_name_field(str(value))
+                if cleaned_name:
+                    validated_data[field] = cleaned_name
+                    
+            elif field == 'id_number':
+                # Validate ID number format
+                id_str = str(value).strip()
+                if re.match(r'^\d{9}$', id_str):
+                    validated_data[field] = id_str
+                    
+            elif field == 'gender':
+                # Just validate that the value is in the allowed list
+                gender = str(value).strip()
+                if gender in valid_values['gender']:
+                    validated_data[field] = gender  # Keep original value
+                        
+            elif field == 'age':
+                # Validate age range
+                try:
+                    age = int(value)
+                    if 0 <= age <= 120:
+                        validated_data[field] = age
+                except (ValueError, TypeError):
+                    pass
+                    
+            elif field == 'hmo_name':
+                # Just validate that the value is in the allowed list
+                hmo = str(value).strip()
+                if hmo in valid_values['hmo_name']:
+                    validated_data[field] = hmo  # Keep original value
+                        
+            elif field == 'hmo_card_number':
+                # Validate HMO card number format
+                card_str = str(value).strip()
+                if re.match(r'^\d{9}$', card_str):
+                    validated_data[field] = card_str
+                    
+            elif field == 'insurance_tier':
+                # Just validate that the value is in the allowed list
+                tier = str(value).strip()
+                if tier in valid_values['insurance_tier']:
+                    validated_data[field] = tier  # Keep original value
+        
+        logger.info(f"Validated data (no language conversion): {validated_data}")
+        return validated_data
+        
+    except Exception as e:
+        logger.error(f"Error validating data: {e}")
+        return None
+
+
+def clean_name_field(name: str) -> Optional[str]:
+    """Clean the name field by removing common prefixes and suffixes"""
+    try:
+        if not name or not name.strip():
+            return None
+            
+        # Remove common Hebrew prefixes
+        prefixes_to_remove = [
+            r'^היי קוראים לי\s*',
+            r'^קוראים לי\s*', 
+            r'^אני\s+',
+            r'^שמי\s*',
+            r'^השם שלי\s*'
+        ]
+        
+        cleaned_name = name.strip()
+        for prefix in prefixes_to_remove:
+            cleaned_name = re.sub(prefix, '', cleaned_name, flags=re.IGNORECASE)
+        
+        # Remove common suffixes that might appear after the name
+        suffixes_to_remove = [
+            r'\s+תז\s*\d+.*$',
+            r'\s+אני בן\s+\d+.*$',
+            r'\s+זכר.*$',
+            r'\s+אני בקופת חולים.*$',
+            r'\s+מספר\s+\d+.*$',
+            r'\s+זהב.*$'
+        ]
+        
+        for suffix in suffixes_to_remove:
+            cleaned_name = re.sub(suffix, '', cleaned_name, flags=re.IGNORECASE)
+        
+        # Final cleanup
+        cleaned_name = cleaned_name.strip()
+        
+        # Ensure we have a meaningful name (at least 2 characters)
+        if len(cleaned_name) >= 2:
+            return cleaned_name
+            
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error cleaning name field: {e}")
         return None
 
 
@@ -248,8 +345,8 @@ def is_user_info_complete(user_info: Dict[str, Any]) -> bool:
         return False
 
 
-def format_user_info_for_prompt(user_info: Dict[str, Any], language: str = "he") -> str:
-    """Format user information for prompt context"""
+def format_user_info_for_prompt_context(user_info: Dict[str, Any], language: str = "he") -> str:
+    """Format user information for prompt context (uses newlines for AI)"""
     if not user_info:
         if language == "he":
             return "לא נאסף מידע על המשתמש עדיין."
@@ -294,9 +391,62 @@ def format_user_info_for_prompt(user_info: Dict[str, Any], language: str = "he")
         if 'insurance_tier' in user_info:
             formatted_info.append(f"Insurance Tier: {user_info['insurance_tier']}")
     
-    return "\n".join(formatted_info) if formatted_info else (
-        "לא נאסף מידע על המשתמש עדיין." if language == "he" else "No user information collected yet."
-    )
+    # Use newlines for prompt context (AI processing)
+    if formatted_info:
+        return "\n".join(formatted_info)
+    else:
+        return "לא נאסף מידע על המשתמש עדיין." if language == "he" else "No user information collected yet."
+
+
+def format_user_info_for_prompt(user_info: Dict[str, Any], language: str = "he") -> str:
+    """Format user information for frontend display (uses HTML line breaks)"""
+    if not user_info:
+        if language == "he":
+            return "לא נאסף מידע על המשתמש עדיין."
+        else:
+            return "No user information collected yet."
+    
+    # Format based on language
+    if language == "he":
+        # Hebrew format
+        formatted_info = []
+        
+        if 'name' in user_info:
+            formatted_info.append(f"שם: {user_info['name']}")
+        if 'id_number' in user_info:
+            formatted_info.append(f"מספר תעודת זהות: {user_info['id_number']}")
+        if 'gender' in user_info:
+            formatted_info.append(f"מגדר: {user_info['gender']}")
+        if 'age' in user_info:
+            formatted_info.append(f"גיל: {user_info['age']}")
+        if 'hmo_name' in user_info:
+            formatted_info.append(f"קופת חולים: {user_info['hmo_name']}")
+        if 'hmo_card_number' in user_info:
+            formatted_info.append(f"מספר כרטיס: {user_info['hmo_card_number']}")
+        if 'insurance_tier' in user_info:
+            formatted_info.append(f"רמת ביטוח: {user_info['insurance_tier']}")
+    else:
+        # English format
+        formatted_info = []
+        
+        if 'name' in user_info:
+            formatted_info.append(f"Name: {user_info['name']}")
+        if 'id_number' in user_info:
+            formatted_info.append(f"ID Number: {user_info['id_number']}")
+        if 'gender' in user_info:
+            formatted_info.append(f"Gender: {user_info['gender']}")
+        if 'age' in user_info:
+            formatted_info.append(f"Age: {user_info['age']}")
+        if 'hmo_name' in user_info:
+            formatted_info.append(f"HMO: {user_info['hmo_name']}")
+        if 'insurance_tier' in user_info:
+            formatted_info.append(f"Insurance Tier: {user_info['insurance_tier']}")
+    
+    # Use HTML line breaks for frontend display
+    if formatted_info:
+        return "<br>".join(formatted_info)
+    else:
+        return "לא נאסף מידע על המשתמש עדיין." if language == "he" else "No user information collected yet."
 
 
 def format_conversation_history(conversation_history: List[Any]) -> str:

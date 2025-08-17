@@ -110,7 +110,7 @@ async def chat(request: ChatRequest):
                     logger.info(f"DEBUG: Missing fields: {[field for field in ['name', 'id_number', 'gender', 'age', 'hmo_name', 'hmo_card_number', 'insurance_tier'] if field not in extracted_info or not extracted_info[field]]}")
             
             # If information is not complete, ask for all missing information
-            collected_info = format_user_info_for_prompt(extracted_info, request.language) if extracted_info else ""
+            collected_info = format_user_info_for_prompt_context(extracted_info, request.language) if extracted_info else ""
             
             prompt_context = system_prompt.format(
                 conversation_history=format_conversation_history(request.conversation_history),
