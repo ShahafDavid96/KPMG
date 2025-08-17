@@ -58,6 +58,101 @@ st.markdown("""
         z-index: 1000;
     }
     
+    /* RTL Support for Hebrew */
+    .rtl-text {
+        direction: rtl !important;
+        text-align: right !important;
+        unicode-bidi: bidi-override !important;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+    }
+    
+    .rtl-input {
+        direction: rtl !important;
+        text-align: right !important;
+        unicode-bidi: bidi-override !important;
+    }
+    
+    /* Hebrew-specific improvements */
+    .rtl-text strong {
+        font-weight: bold !important;
+        color: #333 !important;
+    }
+    
+    .rtl-text br {
+        display: block !important;
+        margin: 0.5em 0 !important;
+    }
+    
+    /* Ensure proper spacing for Hebrew text */
+    .rtl-text .chat-message {
+        padding-right: 1.5rem !important;
+        padding-left: 1rem !important;
+    }
+    
+    /* Override Streamlit's default text alignment for RTL */
+    .rtl-text p, .rtl-text div, .rtl-text span {
+        text-align: right !important;
+        direction: rtl !important;
+    }
+    
+    /* Force RTL for chat messages */
+    .chat-message.rtl-text {
+        text-align: right !important;
+        direction: rtl !important;
+    }
+    
+    /* Override Streamlit's default button alignment */
+    .rtl-text button {
+        text-align: center !important;
+        direction: ltr !important; /* Keep buttons LTR for better UX */
+    }
+    
+    /* Fix for numbers and percentages in Hebrew RTL */
+    .rtl-text .number, .rtl-text .percentage {
+        direction: ltr !important;
+        unicode-bidi: embed !important;
+        display: inline-block !important;
+    }
+    
+    /* Ensure percentages display correctly */
+    .rtl-text .percentage {
+        direction: ltr !important;
+        unicode-bidi: embed !important;
+    }
+    
+    /* Fix for any text containing numbers or percentages */
+    .rtl-text {
+        unicode-bidi: plaintext !important;
+    }
+    
+    /* Additional fixes for Hebrew text with numbers */
+    .rtl-text {
+        /* Use plaintext to prevent bidirectional text issues */
+        unicode-bidi: plaintext !important;
+    }
+    
+    /* Target specific patterns that commonly cause issues */
+    .rtl-text * {
+        /* Ensure child elements inherit the plaintext behavior */
+        unicode-bidi: inherit !important;
+    }
+    
+    /* Force LTR for any content that looks like numbers or percentages */
+    .rtl-text span:contains("%"),
+    .rtl-text span:contains("0"),
+    .rtl-text span:contains("1"),
+    .rtl-text span:contains("2"),
+    .rtl-text span:contains("3"),
+    .rtl-text span:contains("4"),
+    .rtl-text span:contains("5"),
+    .rtl-text span:contains("6"),
+    .rtl-text span:contains("7"),
+    .rtl-text span:contains("8"),
+    .rtl-text span:contains("9") {
+        direction: ltr !important;
+        unicode-bidi: embed !important;
+    }
+    
     /* Custom styling for better input experience */
     .stTextArea textarea {
         font-size: 16px;
@@ -73,6 +168,26 @@ st.markdown("""
     .stButton button:hover {
         transform: translateY(-2px);
         box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    
+    /* Link styling for both RTL and LTR */
+    .chat-message a {
+        color: #1976d2 !important;
+        text-decoration: underline !important;
+        font-weight: 500 !important;
+        transition: color 0.3s ease !important;
+    }
+    
+    .chat-message a:hover {
+        color: #1565c0 !important;
+        text-decoration: none !important;
+    }
+    
+    /* Ensure links work properly in RTL text */
+    .rtl-text a {
+        direction: ltr !important;
+        unicode-bidi: embed !important;
+        display: inline-block !important;
     }
 </style>
 
@@ -94,6 +209,78 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         });
+    });
+    
+    // Force RTL for Hebrew text elements
+    function enforceRTL() {
+        const rtlElements = document.querySelectorAll('.rtl-text');
+        rtlElements.forEach(function(element) {
+            element.style.direction = 'rtl';
+            element.style.textAlign = 'right';
+            element.style.unicodeBidi = 'plaintext';
+            
+            // Apply RTL to all child text elements
+            const textElements = element.querySelectorAll('p, div, span, h1, h2, h3, h4, h5, h6');
+            textElements.forEach(function(textEl) {
+                textEl.style.direction = 'rtl';
+                textEl.style.textAlign = 'right';
+                textEl.style.unicodeBidi = 'plaintext';
+            });
+            
+            // Fix numbers and percentages to display correctly
+            const textContent = element.textContent;
+            if (textContent) {
+                // Find percentages and wrap them in spans with proper direction
+                const percentagePattern = /(\d+%)/g;
+                let updatedContent = textContent.replace(percentagePattern, function(match) {
+                    return '<span style="direction: ltr; unicode-bidi: embed; display: inline-block;">' + match + '</span>';
+                });
+                
+                // Find phone numbers (patterns like *3555, 1-700-50-53-53)
+                const phonePattern = /(\*?\d+(?:-\d+)*)/g;
+                updatedContent = updatedContent.replace(phonePattern, function(match) {
+                    return '<span style="direction: ltr; unicode-bidi: embed; display: inline-block;">' + match + '</span>';
+                });
+                
+                // Find standalone numbers
+                const numberPattern = /(\b\d+\b)/g;
+                updatedContent = updatedContent.replace(numberPattern, function(match) {
+                    return '<span style="direction: ltr; unicode-bidi: embed;">' + match + '</span>';
+                });
+                
+                // If content was updated, apply it
+                if (updatedContent !== textContent) {
+                    element.innerHTML = updatedContent;
+                }
+            }
+        });
+        
+        // Force RTL for textareas
+        const textareas = document.querySelectorAll('.stTextArea textarea');
+        textareas.forEach(function(textarea) {
+            textarea.style.direction = 'rtl';
+            textarea.style.textAlign = 'right';
+            textarea.style.unicodeBidi = 'bidi-override';
+        });
+    }
+    
+    // Run RTL enforcement immediately and after a short delay
+    enforceRTL();
+    setTimeout(enforceRTL, 100);
+    setTimeout(enforceRTL, 500);
+    
+    // Monitor for dynamic content changes
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.type === 'childList') {
+                setTimeout(enforceRTL, 50);
+            }
+        });
+    });
+    
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
     });
 });
 </script>
@@ -315,25 +502,42 @@ def export_conversation():
 def display_conversation():
     """Display conversation history"""
     for message in st.session_state.conversation_history:
+        # Determine if text should be RTL (Hebrew)
+        is_hebrew = st.session_state.language == "he"
+        rtl_class = "rtl-text" if is_hebrew else ""
+        
+        # Get the content and make URLs clickable (simple approach)
+        content = message["content"]
+        
+        # Simple URL detection and conversion to clickable links
+        import re
+        # Find URLs and make them clickable
+        url_pattern = r'https?://[^\s<>"]+'
+        content = re.sub(url_pattern, r'<a href="\g<0>" target="_blank" style="color: #1976d2; text-decoration: underline;">\g<0></a>', content)
+        
         if message["role"] == "user":
             st.markdown(f"""
-            <div class="chat-message user-message">
+            <div class="chat-message user-message {rtl_class}">
                 <strong>👤 {get_text('user_messages')}:</strong><br>
-                {message["content"]}
+                {content}
             </div>
             """, unsafe_allow_html=True)
         elif message["role"] == "assistant":
             st.markdown(f"""
-            <div class="chat-message bot-message">
+            <div class="chat-message bot-message {rtl_class}">
                 <strong>🤖 {get_text('bot_messages')}:</strong><br>
-                {message["content"]}
+                {content}
             </div>
             """, unsafe_allow_html=True)
 
 def main():
     # Language switcher
     with st.sidebar:
-        st.markdown("## " + get_text("settings"))
+        # Determine if sidebar should be RTL (Hebrew)
+        is_hebrew = st.session_state.language == "he"
+        sidebar_rtl_class = "rtl-text" if is_hebrew else ""
+        
+        st.markdown(f"<div class='{sidebar_rtl_class}'>## {get_text('settings')}</div>", unsafe_allow_html=True)
         new_language = st.selectbox(
             get_text("language"),
             options=["he", "en"],
@@ -346,19 +550,88 @@ def main():
             st.rerun()
     
     # Main header
-    st.markdown(f"<h1 class='main-header'>{get_text('title')}</h1>", unsafe_allow_html=True)
-    st.markdown(f"<h3 style='text-align: center; color: #666;'>{get_text('subtitle')}</h3>", unsafe_allow_html=True)
+    # Determine if header should be RTL (Hebrew)
+    is_hebrew = st.session_state.language == "he"
+    header_rtl_class = "rtl-text" if is_hebrew else ""
+    
+    # Apply comprehensive RTL styling for Hebrew
+    if is_hebrew:
+        st.markdown("""
+        <style>
+        /* Force RTL for the entire page when Hebrew is selected */
+        .main .block-container {
+            direction: rtl !important;
+        }
+        
+        /* Override Streamlit's default text alignment */
+        .main .block-container p,
+        .main .block-container div,
+        .main .block-container span,
+        .main .block-container h1,
+        .main .block-container h2,
+        .main .block-container h3 {
+            text-align: right !important;
+            direction: rtl !important;
+        }
+        
+        /* Keep headers centered but with RTL text flow */
+        .main-header.rtl-text {
+            text-align: center !important;
+            direction: rtl !important;
+        }
+        
+        /* Force RTL for all text elements */
+        .rtl-text, .rtl-text * {
+            direction: rtl !important;
+            text-align: right !important;
+        }
+        
+        /* Exception for buttons - keep them centered */
+        .rtl-text button {
+            text-align: center !important;
+            direction: ltr !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+    
+    st.markdown(f"<h1 class='main-header {header_rtl_class}'>{get_text('title')}</h1>", unsafe_allow_html=True)
+    st.markdown(f"<h3 style='text-align: center; color: #666;' class='{header_rtl_class}'>{get_text('subtitle')}</h3>", unsafe_allow_html=True)
     
     # API status check
     api_healthy = check_api_health()
     if not api_healthy:
-        st.error(f"⚠️ {get_text('api_status')}: {get_text('disconnected')}")
-        st.info("Please make sure the backend API is running on http://localhost:8000")
+        # Apply RTL styling to error message if Hebrew
+        if st.session_state.language == "he":
+            st.markdown(f"""
+            <div class="rtl-text">
+                <div style="color: #d32f2f; font-weight: bold;">⚠️ {get_text('api_status')}: {get_text('disconnected')}</div>
+            </div>
+            """, unsafe_allow_html=True)
+            st.markdown(f"""
+            <div class="rtl-text">
+                <div style="color: #1976d2;">אנא ודא שהשרת האחורי פועל על http://localhost:8000</div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.error(f"⚠️ {get_text('api_status')}: {get_text('disconnected')}")
+            st.info("Please make sure the backend API is running on http://localhost:8000")
         return
     
     # Sidebar with controls and stats
     with st.sidebar:
-        st.success(f"✅ {get_text('api_status')}: {get_text('connected')}")
+        # Determine if sidebar should be RTL (Hebrew)
+        is_hebrew = st.session_state.language == "he"
+        sidebar_rtl_class = "rtl-text" if is_hebrew else ""
+        
+        # Apply RTL styling to success message if Hebrew
+        if is_hebrew:
+            st.markdown(f"""
+            <div class="rtl-text">
+                <div style="color: #2e7d32; font-weight: bold;">✅ {get_text('api_status')}: {get_text('connected')}</div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.success(f"✅ {get_text('api_status')}: {get_text('connected')}")
         
         # Health check button
         if st.button(get_text("health_check")):
@@ -368,7 +641,7 @@ def main():
                 st.json(health_data)
         
         # Conversation statistics
-        st.markdown(f"## {get_text('conversation_stats')}")
+        st.markdown(f"<div class='{sidebar_rtl_class}'>## {get_text('conversation_stats')}</div>", unsafe_allow_html=True)
         total_messages = len(st.session_state.conversation_history)
         user_messages = len([msg for msg in st.session_state.conversation_history if msg["role"] == "user"])
         bot_messages = len([msg for msg in st.session_state.conversation_history if msg["role"] == "assistant"])
@@ -378,7 +651,7 @@ def main():
         st.metric(get_text("bot_messages"), bot_messages)
         
         # Control buttons
-        st.markdown("## Controls")
+        st.markdown(f"<div class='{sidebar_rtl_class}'>## Controls</div>", unsafe_allow_html=True)
         if st.button(get_text("clear_conversation")):
             clear_conversation()
             st.rerun()
@@ -394,8 +667,12 @@ def main():
 
 {get_text('welcome_subtitle')}"""
         
+        # Determine if text should be RTL (Hebrew)
+        is_hebrew = st.session_state.language == "he"
+        rtl_class = "rtl-text" if is_hebrew else ""
+        
         st.markdown(f"""
-        <div class="chat-message bot-message">
+        <div class="chat-message bot-message {rtl_class}">
             <strong>🤖 {get_text('bot_messages')}:</strong><br>
             {welcome_message}
         </div>
@@ -410,6 +687,9 @@ def main():
         # Use a unique key that changes when we want to clear the input
         input_key = f"user_input_{len(st.session_state.conversation_history)}"
         
+        # Determine if input should be RTL (Hebrew)
+        is_hebrew = st.session_state.language == "he"
+        
         user_message = st.text_area(
             get_text("type_message"),
             height=100,
@@ -418,10 +698,55 @@ def main():
             max_chars=1000
         )
         
+        # Apply RTL styling to the textarea if Hebrew
+        if is_hebrew:
+            st.markdown("""
+            <style>
+            /* Target Streamlit textarea specifically */
+            .stTextArea textarea {
+                direction: rtl !important;
+                text-align: right !important;
+                unicode-bidi: bidi-override !important;
+            }
+            
+            /* Target the textarea container */
+            .stTextArea > div > div > textarea {
+                direction: rtl !important;
+                text-align: right !important;
+                unicode-bidi: bidi-override !important;
+            }
+            
+            /* Force RTL for the textarea input */
+            .stTextArea textarea[data-testid="stTextArea"] {
+                direction: rtl !important;
+                text-align: right !important;
+                unicode-bidi: bidi-override !important;
+            }
+            
+            /* Override any Streamlit default styles */
+            .stTextArea textarea,
+            .stTextArea > div > div > textarea,
+            .stTextArea textarea[data-testid="stTextArea"] {
+                direction: rtl !important;
+                text-align: right !important;
+                unicode-bidi: bidi-override !important;
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+        
         # Show character count
         if user_message:
             char_count = len(user_message)
-            st.caption(f"Characters: {char_count}/1000")
+            # Apply RTL styling to character count if Hebrew
+            if is_hebrew:
+                st.markdown(f"""
+                <div class="rtl-text">
+                    <small>תווים: {char_count}/1000</small>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.caption(f"Characters: {char_count}/1000")
         
         col1, col2 = st.columns([1, 4])
         

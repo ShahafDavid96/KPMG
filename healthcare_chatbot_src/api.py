@@ -17,9 +17,15 @@ from utils import (
     safe_log_text
 )
 from config import get_azure_client, validate_configuration, AZURE_OPENAI_DEPLOYMENT_NAME
+import os
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Debug: Log which utils module is being imported
+import utils
+logger.info(f"DEBUG: Imported utils module from: {utils.__file__}")
+logger.info(f"DEBUG: Utils module content preview: {dir(utils)[:10]}")
 
 # Global knowledge base instance (initialized during startup)
 _knowledge_base = None
@@ -67,8 +73,11 @@ async def chat(request: ChatRequest):
         
         # Information collection phase
         if request.phase == "info_collection":
+            # Create a conversation history that includes the current message
+            current_conversation = request.conversation_history + [{"role": "user", "content": request.message}]
+            
             # Extract any information the user might have provided
-            extracted_info = extract_user_info_from_conversation(request.conversation_history)
+            extracted_info = extract_user_info_from_conversation(current_conversation)
             
             # Debug logging
             logger.info(f"DEBUG: Extracted info: {extracted_info}")
@@ -76,45 +85,25 @@ async def chat(request: ChatRequest):
             
             # Check if we have complete information
             if extracted_info and is_user_info_complete(extracted_info):
-                logger.info(f"DEBUG: User info is complete, transitioning to QA phase")
-                # Create UserInfo object from extracted data
-                try:
-                    # Split name into first and last name
-                    name_parts = extracted_info.get('name', '').split()
-                    first_name = name_parts[0] if name_parts else ''
-                    last_name = ' '.join(name_parts[1:]) if len(name_parts) > 1 else ''
-                    
-                    from models import UserInfo
-                    user_info = UserInfo(
-                        first_name=first_name,
-                        last_name=last_name,
-                        id_number=extracted_info['id_number'],
-                        gender=extracted_info['gender'],
-                        age=extracted_info['age'],
-                        hmo_name=extracted_info['hmo_name'],
-                        hmo_card_number=extracted_info['hmo_card_number'],
-                        insurance_tier=extracted_info['insurance_tier']
-                    )
-                    
-                    # Transition to QA phase - make it language-aware
-                    if request.language == "he":
-                        response_text = f"מעולה! הנה סיכום המידע שלך:\n\n{format_user_info_for_prompt(extracted_info, request.language)}\n\nאיך אני יכול לעזור לך היום?"
-                    else:
-                        response_text = f"Excellent! Here is a summary of your information:\n\n{format_user_info_for_prompt(extracted_info, request.language)}\n\nHow can I help you today?"
-                    
-                    logger.info(f"DEBUG: Created UserInfo object: {user_info}")
-                    logger.info(f"DEBUG: Transitioning to QA phase with response: {response_text[:100]}...")
-                    
-                    return ChatResponse(
-                        response=response_text,
-                        phase="qa",
-                        user_info=user_info,
-                        user_info_complete=True
-                    )
-                    
-                except Exception as e:
-                    logger.error(f"Error creating UserInfo: {e}")
-                    # Continue with information collection
+                logger.info(f"DEBUG: User info is complete, transitioning to validation phase")
+                
+                # Instead of going directly to QA, go to validation first
+                validation_response = format_user_info_for_prompt(extracted_info, request.language)
+                
+                if request.language == "he":
+                    response_text = f"מעולה! הנה סיכום המידע שלך:\n\n{validation_response}\n\nהאם המידע הזה נכון? אם כן, אני אמשיך לעזור לך. אם לא, אנא תקן את הטעויות."
+                else:
+                    response_text = f"Excellent! Here is a summary of your information:\n\n{validation_response}\n\nIs this information correct? If yes, I'll continue to help you. If not, please correct any errors."
+                
+                logger.info(f"DEBUG: Transitioning to validation phase with response: {response_text[:100]}...")
+                
+                return ChatResponse(
+                    response=response_text,
+                    phase="validation",  # New validation phase
+                    user_info=None,  # Not complete yet, needs validation
+                    user_info_complete=False
+                )
+                
             else:
                 logger.info(f"DEBUG: User info is NOT complete. Extracted: {extracted_info}")
                 if extracted_info:
@@ -128,6 +117,192 @@ async def chat(request: ChatRequest):
                 collected_info=collected_info,
                 user_message=request.message
             )
+            
+            # Generate response using Azure OpenAI
+            try:
+                response = azure_client.chat.completions.create(
+                    model=os.getenv("AZURE_OPENAI_MODEL", "gpt-4o"),
+                    messages=[
+                        {"role": "system", "content": prompt_context},
+                        {"role": "user", "content": request.message}
+                    ],
+                    max_tokens=1000,
+                    temperature=0.7
+                )
+                
+                response_text = response.choices[0].message.content
+                
+                return ChatResponse(
+                    response=response_text,
+                    phase="info_collection",
+                    user_info=None,
+                    user_info_complete=False
+                )
+                
+            except Exception as e:
+                logger.error(f"Azure OpenAI API error: {e}")
+                logger.error(f"Error type: {type(e).__name__}")
+                logger.error(f"Azure client attributes: {dir(azure_client)}")
+                
+                # Fallback response
+                if request.language == "he":
+                    fallback_response = "מצטער, יש בעיה טכנית. אנא נסה שוב מאוחר יותר."
+                else:
+                    fallback_response = "Sorry, there's a technical issue. Please try again later."
+                
+                return ChatResponse(
+                    response=fallback_response,
+                    phase="info_collection",
+                    user_info=None,
+                    user_info_complete=False
+                )
+        elif request.phase == "validation":
+            # New validation phase
+            logger.info(f"DEBUG: In validation phase")
+            
+            # In validation phase, we should have the extracted info from the previous phase
+            # We need to re-extract it from the conversation history since we don't store it between requests
+            extracted_info = extract_user_info_from_conversation(request.conversation_history)
+            
+            if not extracted_info or not is_user_info_complete(extracted_info):
+                logger.info(f"DEBUG: Information incomplete in validation phase, going back to info collection")
+                # Go back to information collection phase
+                if request.language == "he":
+                    response_text = "אני מבין שהמידע לא שלם. אנא ספק את כל המידע הנדרש שוב."
+                else:
+                    response_text = "I understand the information is incomplete. Please provide all required information again."
+                
+                return ChatResponse(
+                    response=response_text,
+                    phase="info_collection",  # Go back to info collection
+                    user_info=None,
+                    user_info_complete=False
+                )
+            
+            # Check if user is confirming the information
+            user_message_lower = request.message.lower()
+            confirmation_indicators = {
+                "he": ["כן", "נכון", "בסדר", "אוקיי", "מעולה", "טוב", "נכון", "אמת", "אמתי"],
+                "en": ["yes", "correct", "right", "okay", "ok", "good", "true", "accurate", "perfect"]
+            }
+            
+            is_confirmed = any(indicator in user_message_lower for indicator in confirmation_indicators[request.language])
+            
+            if is_confirmed:
+                logger.info(f"DEBUG: User confirmed information, transitioning to QA phase")
+                
+                # Clean the extracted data before creating UserInfo object
+                cleaned_info = {}
+                
+                # Clean HMO name - extract only the valid HMO part
+                hmo_name = extracted_info.get('hmo_name', '')
+                valid_hmos = ['מכבי', 'מאוחדת', 'כללית', 'Maccabi', 'Meuhedet', 'Clalit']
+                cleaned_hmo = None
+                for valid_hmo in valid_hmos:
+                    if valid_hmo.lower() in hmo_name.lower():
+                        cleaned_hmo = valid_hmo
+                        break
+                
+                if not cleaned_hmo:
+                    # Fallback: use the first valid HMO found in the text
+                    for valid_hmo in valid_hmos:
+                        if valid_hmo in hmo_name:
+                            cleaned_hmo = valid_hmo
+                            break
+                
+                cleaned_info['hmo_name'] = cleaned_hmo or 'מכבי'  # Default fallback
+                
+                # Clean insurance tier - extract only the valid tier part
+                insurance_tier = extracted_info.get('insurance_tier', '')
+                valid_tiers = ['זהב', 'כסף', 'ארד', 'Gold', 'Silver', 'Bronze']
+                cleaned_tier = None
+                for valid_tier in valid_tiers:
+                    if valid_tier.lower() in insurance_tier.lower():
+                        cleaned_tier = valid_tier
+                        break
+                
+                if not cleaned_tier:
+                    # Fallback: use the first valid tier found in the text
+                    for valid_tier in valid_tiers:
+                        if valid_tier in insurance_tier:
+                            cleaned_tier = valid_tier
+                            break
+                
+                cleaned_info['insurance_tier'] = cleaned_tier or 'זהב'  # Default fallback
+                
+                # Clean other fields
+                cleaned_info['id_number'] = str(extracted_info.get('id_number', '')).strip()
+                cleaned_info['age'] = int(extracted_info.get('age', 0))
+                cleaned_info['gender'] = str(extracted_info.get('gender', '')).strip()
+                cleaned_info['hmo_card_number'] = str(extracted_info.get('hmo_card_number', '')).strip()
+                
+                # Split name into first and last name
+                name_parts = extracted_info.get('name', '').split()
+                first_name = name_parts[0] if name_parts else ''
+                last_name = ' '.join(name_parts[1:]) if len(name_parts) > 1 else ''
+                
+                logger.info(f"DEBUG: Cleaned info for UserInfo creation: {cleaned_info}")
+                
+                # Create UserInfo object from cleaned data
+                try:
+                    from models import UserInfo
+                    user_info = UserInfo(
+                        first_name=first_name,
+                        last_name=last_name,
+                        id_number=cleaned_info['id_number'],
+                        gender=cleaned_info['gender'],
+                        age=cleaned_info['age'],
+                        hmo_name=cleaned_info['hmo_name'],
+                        hmo_card_number=cleaned_info['hmo_card_number'],
+                        insurance_tier=cleaned_info['insurance_tier']
+                    )
+                    
+                    # Transition to QA phase
+                    if request.language == "he":
+                        response_text = f"מעולה! המידע אומת בהצלחה. איך אני יכול לעזור לך היום?"
+                    else:
+                        response_text = f"Excellent! Information verified successfully. How can I help you today?"
+                    
+                    logger.info(f"DEBUG: Created UserInfo object: {user_info}")
+                    logger.info(f"DEBUG: Transitioning to QA phase with response: {response_text[:100]}...")
+                    
+                    return ChatResponse(
+                        response=response_text,
+                        phase="qa",
+                        user_info=user_info,
+                        user_info_complete=True
+                    )
+                    
+                except Exception as e:
+                    logger.error(f"Error creating UserInfo: {e}")
+                    # If UserInfo creation fails, provide a helpful error message
+                    if request.language == "he":
+                        error_response = "מצטער, יש בעיה בעיבוד המידע. אנא נסה שוב או פנה לתמיכה."
+                    else:
+                        error_response = "Sorry, there's an issue processing the information. Please try again or contact support."
+                    
+                    return ChatResponse(
+                        response=error_response,
+                        phase="validation",
+                        user_info=None,
+                        user_info_complete=False
+                    )
+            else:
+                logger.info(f"DEBUG: User needs to correct information or confirmation unclear")
+                
+                # User either denied the information or needs to correct it
+                # Go back to information collection phase
+                if request.language == "he":
+                    response_text = "אני מבין שהמידע צריך תיקון. אנא ספק את המידע הנכון שוב."
+                else:
+                    response_text = "I understand the information needs correction. Please provide the correct information again."
+                
+                return ChatResponse(
+                    response=response_text,
+                    phase="info_collection",  # Go back to info collection
+                    user_info=None,
+                    user_info_complete=False
+                )
         else:
             # QA phase
             user_info_str = format_user_info_for_prompt(request.user_info, request.language)

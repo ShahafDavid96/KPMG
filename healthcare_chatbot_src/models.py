@@ -57,7 +57,7 @@ class ChatRequest(BaseModel):
     message: str = Field(..., description="User message")
     user_info: Optional[UserInfo] = Field(None, description="User information")
     conversation_history: List[ChatMessage] = Field(default_factory=list, description="Conversation history")
-    phase: str = Field(..., description="Current phase (info_collection/qa)")
+    phase: str = Field(..., description="Current phase (info_collection/validation/qa)")
     language: str = Field(default="he", description="Language preference (he/en)")
 
 

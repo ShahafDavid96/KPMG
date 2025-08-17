@@ -2,14 +2,113 @@
 import json
 from validator import validate_extracted_data
 
-def test_validator_fixes():
-    """Test the new validation logic with various data scenarios."""
+def test_enhanced_validator():
+    """Test the enhanced validation system with detailed rule violations."""
     
-    # Test 1: ID number with more than 9 digits
+    # Test 1: Data with multiple validation issues
     test_data_1 = {
         "lastName": "יוחננוף",
         "firstName": "רועי",
-        "idNumber": "123456789012345",  # 15 digits - should be truncated to 9
+        "idNumber": "12345",  # Too short - should fail
+        "gender": "invalid",  # Invalid gender - should fail
+        "dateOfBirth": {
+            "day": "32",  # Invalid day - should fail
+            "month": "13",  # Invalid month - should fail
+            "year": "1800"  # Invalid year - should fail
+        },
+        "address": {
+            "street": "המאיר",
+            "houseNumber": "15",
+            "entrance": "1",
+            "apartment": "16",
+            "city": "אלוני הבשן",
+            "postalCode": "123",  # Too short - should fail
+            "poBox": ""
+        },
+        "landlinePhone": "abc",  # Contains letters - should fail
+        "mobilePhone": "123",  # Too short - should fail
+        "jobType": "ירקנייה",
+        "dateOfInjury": {
+            "day": "29",  # February 29 in non-leap year - should fail
+            "month": "2",
+            "year": "2023"
+        },
+        "timeOfInjury": "25:70",  # Invalid time - should fail
+        "accidentLocation": "A",  # Too short - should fail
+        "accidentAddress": "לוונברג 173 כפר סבא",
+        "accidentDescription": "Short",  # Too short - should fail
+        "injuredBodyPart": "X",  # Too short - should fail
+        "signature": "רועי יוחננוף",
+        "formFillingDate": {
+            "day": "20",
+            "month": "05",
+            "year": "1999"
+        },
+        "formReceiptDateAtClinic": {
+            "day": "30",
+            "month": "06",
+            "year": "1999"
+        },
+        "medicalInstitutionFields": {
+            "healthFundMember": "כללית",
+            "natureOfAccident": "",
+            "medicalDiagnoses": ""
+        }
+    }
+    
+    print("🧪 Testing Enhanced NII Validator with Detailed Rules")
+    print("=" * 80)
+    
+    # Test the enhanced validation
+    result = validate_extracted_data(json.dumps(test_data_1))
+    
+    print(f"✅ Schema Valid: {result['is_valid_schema']}")
+    print(f"📊 Completeness Score: {result['completeness_score']:.1f}%")
+    print(f"🎯 Accuracy Score: {result['accuracy_score']:.1f}%")
+    
+    print("\n📋 Enhanced Validation Results:")
+    detailed_results = result.get("accuracy_details_detailed", {})
+    
+    for rule_name, details in detailed_results.items():
+        if details['passed']:
+            print(f"✅ {rule_name} - PASSED")
+        else:
+            print(f"❌ {rule_name} - FAILED")
+            violations = details.get("violations", [])
+            if violations:
+                print("   Violations:")
+                for violation in violations:
+                    print(f"     • {violation}")
+            if details.get("details"):
+                print(f"   Details: {details['details']}")
+    
+    print("\n🔧 Data Fixes Applied:")
+    fixes = result.get("data_fixes_applied", [])
+    if fixes:
+        for fix in fixes:
+            print(f"   {fix['field']}: '{fix['original']}' → '{fix['fixed']}' ({fix['fix_type']})")
+    else:
+        print("   No automatic fixes applied")
+    
+    print("\n📊 Summary:")
+    total_checks = len(detailed_results)
+    passed_checks = sum(1 for details in detailed_results.values() if details['passed'])
+    failed_checks = total_checks - passed_checks
+    
+    print(f"   Total Validation Rules: {total_checks}")
+    print(f"   Passed: {passed_checks}")
+    print(f"   Failed: {failed_checks}")
+    print(f"   Success Rate: {(passed_checks/total_checks)*100:.1f}%")
+    
+    print("=" * 80)
+
+def test_valid_data():
+    """Test with valid data to show passing validations."""
+    
+    valid_data = {
+        "lastName": "יוחננוף",
+        "firstName": "רועי",
+        "idNumber": "123456789",
         "gender": "זכר",
         "dateOfBirth": {
             "day": "03",
@@ -22,18 +121,18 @@ def test_validator_fixes():
             "entrance": "1",
             "apartment": "16",
             "city": "אלוני הבשן",
-            "postalCode": "445412123",  # 9 digits - should be truncated to 7
+            "postalCode": "4454123",
             "poBox": ""
         },
-        "landlinePhone": "8975423541",  # 10 digits - should be fixed to start with 0
-        "mobilePhone": "502451645",     # 9 digits - should be fixed to start with 05
+        "landlinePhone": "0975423541",
+        "mobilePhone": "0502451645",
         "jobType": "ירקנייה",
         "dateOfInjury": {
             "day": "14",
             "month": "04",
             "year": "1999"
         },
-        "timeOfInjury": "15.30",        # Invalid format - should be fixed to 15:30
+        "timeOfInjury": "15:30",
         "accidentLocation": "במפעל",
         "accidentAddress": "לוונברג 173 כפר סבא",
         "accidentDescription": "במהלך העבודה הרמתי משקל כבד וכתוצאה מכך הייתי צריך ניתוח קילה",
@@ -56,35 +155,31 @@ def test_validator_fixes():
         }
     }
     
-    print("Testing Validator with Data Fixes")
-    print("=" * 60)
+    print("\n🧪 Testing Enhanced Validator with Valid Data")
+    print("=" * 80)
     
-    # Test the validation
-    result = validate_extracted_data(json.dumps(test_data_1))
+    result = validate_extracted_data(json.dumps(valid_data))
     
-    print(f"Schema Valid: {result['is_valid_schema']}")
-    print(f"Completeness Score: {result['completeness_score']:.1f}%")
-    print(f"Accuracy Score: {result['accuracy_score']:.1f}%")
+    print(f"✅ Schema Valid: {result['is_valid_schema']}")
+    print(f"📊 Completeness Score: {result['completeness_score']:.1f}%")
+    print(f"🎯 Accuracy Score: {result['accuracy_score']:.1f}%")
     
-    print("\nData Fixes Applied:")
-    for fix in result.get("data_fixes_applied", []):
-        print(f"  {fix['field']}: '{fix['original']}' → '{fix['fixed']}' ({fix['fix_type']})")
+    print("\n📋 Validation Results (Should All Pass):")
+    detailed_results = result.get("accuracy_details_detailed", {})
     
-    print("\nAccuracy Details:")
-    for check_name, is_passed in result.get("accuracy_details", {}).items():
-        status = "✅ PASS" if is_passed else "❌ FAIL"
-        print(f"  {check_name}: {status}")
+    for rule_name, details in detailed_results.items():
+        if details['passed']:
+            print(f"✅ {rule_name} - PASSED")
+        else:
+            print(f"❌ {rule_name} - FAILED")
+            violations = details.get("violations", [])
+            if violations:
+                print("   Violations:")
+                for violation in violations:
+                    print(f"     • {violation}")
     
-    print("\nCorrected Data Preview:")
-    corrected = result.get("corrected_data", {})
-    if corrected:
-        print(f"  ID Number: {corrected.get('idNumber', 'N/A')}")
-        print(f"  Postal Code: {corrected.get('address', {}).get('postalCode', 'N/A')}")
-        print(f"  Landline Phone: {corrected.get('landlinePhone', 'N/A')}")
-        print(f"  Mobile Phone: {corrected.get('mobilePhone', 'N/A')}")
-        print(f"  Time of Injury: {corrected.get('timeOfInjury', 'N/A')}")
-    
-    print("=" * 60)
+    print("=" * 80)
 
 if __name__ == "__main__":
-    test_validator_fixes()
+    test_enhanced_validator()
+    test_valid_data()

@@ -12,8 +12,10 @@ logger = logging.getLogger(__name__)
 
 
 def extract_user_info_from_conversation(conversation_history: List[Any]) -> Optional[Dict[str, Any]]:
-    """Extract user information from conversation history"""
+    """Extract user information from conversation history using AI prompt"""
     try:
+        logger.info("DEBUG: extract_user_info_from_conversation called with prompt-based approach")
+        
         # Look for ALL user messages in the conversation
         user_messages = []
         for msg in conversation_history:
@@ -25,6 +27,7 @@ def extract_user_info_from_conversation(conversation_history: List[Any]) -> Opti
                 user_messages.append(msg)
         
         if not user_messages:
+            logger.info("DEBUG: No user messages found")
             return None
         
         # Combine ALL user messages into one text for extraction
@@ -39,178 +42,158 @@ def extract_user_info_from_conversation(conversation_history: List[Any]) -> Opti
         
         # Combine all user messages into one text
         message_content = " ".join(all_user_content)
+        logger.info(f"DEBUG: Combined message content: {message_content[:100]}...")
         
-        # Safe logging for Hebrew content
-        try:
-            safe_preview = message_content[:100].encode('ascii', 'ignore').decode('ascii')
-            if safe_preview:
-                logger.info(f"Combined user content from {len(user_messages)} messages: {safe_preview}...")
-            else:
-                logger.info(f"Combined user content from {len(user_messages)} messages: [Hebrew content - length: {len(message_content)}]")
-        except Exception:
-            logger.info(f"Combined user content from {len(user_messages)} messages: [Content length: {len(message_content)}]")
+        # Use AI prompt to extract information
+        extracted_info = extract_info_with_ai_prompt(message_content)
         
-        # Try to extract information using various patterns
-        extracted_info = {}
-        
-        # Extract name patterns (Hebrew and English) - More flexible
-        name_patterns = [
-            r'שם[:\s]+([^\n\r,]+)',  # Hebrew: "שם: משה כהן"
-            r'name[:\s]+([^\n\r,]+)',  # English: "name: Moshe Cohen"
-            r'שם פרטי[:\s]+([^\n\r,]+)',  # Hebrew: "שם פרטי: משה"
-            r'first name[:\s]+([^\n\r,]+)',  # English: "first name: Moshe"
-            r'שם משפחה[:\s]+([^\n\r,]+)',  # Hebrew: "שם משפחה: כהן"
-            r'last name[:\s]+([^\n\r,]+)',  # English: "last name: Cohen"
-            r'קוראים לי[:\s]*([^\n\r,]+)',  # Hebrew: "קוראים לי משה כהן"
-            r'my name is[:\s]*([^\n\r,]+)',  # English: "my name is Moshe Cohen"
-            r'אני[:\s]*([^\n\r,]+)',  # Hebrew: "אני משה כהן"
-            r'i am[:\s]*([^\n\r,]+)',  # English: "i am Moshe Cohen"
-        ]
-        
-        for pattern in name_patterns:
-            match = re.search(pattern, message_content, re.IGNORECASE)
-            if match:
-                extracted_info['name'] = match.group(1).strip()
-                break
-        
-        # Extract ID number patterns - More flexible
-        id_patterns = [
-            r'תעודת זהות[:\s]*(\d{9})',  # Hebrew: "תעודת זהות: 123456789"
-            r'id[:\s]*(\d{9})',  # English: "id: 123456789"
-            r'מספר[:\s]*(\d{9})',  # Hebrew: "מספר: 123456789"
-            r'number[:\s]*(\d{9})',  # English: "number: 123456789"
-            r'ת.ז[:\s]*(\d{9})',  # Hebrew: "ת.ז: 123456789"
-            r'תז[:\s]*(\d{9})',  # Hebrew: "תז: 123456789"
-            r'(\d{9})',  # Any 9-digit number (fallback)
-        ]
-        
-        for pattern in id_patterns:
-            match = re.search(pattern, message_content, re.IGNORECASE)
-            if match:
-                extracted_info['id_number'] = match.group(1)
-                break
-        
-        # Extract gender patterns
-        gender_patterns = [
-            r'מגדר[:\s]+([^\n\r,]+)',  # Hebrew: "מגדר: זכר"
-            r'gender[:\s]+([^\n\r,]+)',  # English: "gender: male"
-            r'זכר|נקבה',  # Hebrew: "זכר" or "נקבה"
-            r'male|female',  # English: "male" or "female"
-        ]
-        
-        for pattern in gender_patterns:
-            match = re.search(pattern, message_content, re.IGNORECASE)
-            if match:
-                extracted_info['gender'] = match.group(1) if ':' in pattern else match.group(0)
-                break
-        
-        # Extract age patterns - More flexible Hebrew
-        age_patterns = [
-            r'גיל[:\s]*(\d{1,3})',  # Hebrew: "גיל: 25"
-            r'age[:\s]*(\d{1,3})',  # English: "age: 25"
-            r'בן[:\s]*(\d{1,3})',  # Hebrew: "בן 25" (son of 25)
-            r'בת[:\s]*(\d{1,3})',  # Hebrew: "בת 25" (daughter of 25)
-            r'(\d{1,3})\s*שנה',  # Hebrew: "25 שנה" (25 years)
-            r'(\d{1,3})\s*years?',  # English: "25 years"
-        ]
-        
-        for pattern in age_patterns:
-            match = re.search(pattern, message_content, re.IGNORECASE)
-            if match:
-                age = int(match.group(1))
-                if 0 <= age <= 120:
-                    extracted_info['age'] = age
-                break
-        
-        # Extract HMO patterns - More flexible
-        hmo_patterns = [
-            r'קופת חולים[:\s]+([^\n\r,]+)',  # Hebrew: "קופת חולים: מכבי"
-            r'hmo[:\s]+([^\n\r,]+)',  # English: "hmo: Maccabi"
-            r'קופה[:\s]+([^\n\r,]+)',  # Hebrew: "קופה: מכבי"
-            r'fund[:\s]+([^\n\r,]+)',  # English: "fund: Maccabi"
-            r'מכבי|מאוחדת|כללית',  # Hebrew HMO names
-            r'maccabi|meuhedet|clalit',  # English HMO names
-        ]
-        
-        for pattern in hmo_patterns:
-            match = re.search(pattern, message_content, re.IGNORECASE)
-            if match:
-                extracted_info['hmo_name'] = match.group(1) if ':' in pattern else match.group(0)
-                break
-        
-        # Extract HMO card number patterns - More flexible
-        card_patterns = [
-            r'כרטיס[:\s]*(\d{9})',  # Hebrew: "כרטיס: 123456789"
-            r'card[:\s]*(\d{9})',  # English: "card: 123456789"
-            r'מספר כרטיס[:\s]*(\d{9})',  # Hebrew: "מספר כרטיס: 123456789"
-            r'כרטיס קופה[:\s]*(\d{9})',  # Hebrew: "כרטיס קופה: 123456789"
-            r'קופת חולים כרטיס[:\s]*(\d{9})',  # Hebrew: "קופת חולים כרטיס: 123456789"
-        ]
-        
-        # Try to find card number with specific patterns first
-        for pattern in card_patterns:
-            match = re.search(pattern, message_content, re.IGNORECASE)
-            if match:
-                extracted_info['hmo_card_number'] = match.group(1)
-                break
-        
-        # If no specific pattern found, try to find second 9-digit number
-        if 'hmo_card_number' not in extracted_info and 'id_number' in extracted_info:
-            # Find all 9-digit numbers
-            all_numbers = re.findall(r'(\d{9})', message_content)
-            if len(all_numbers) >= 2:
-                # First number is ID, second is card number
-                extracted_info['hmo_card_number'] = all_numbers[1]
-        
-        # Extract insurance tier patterns
-        tier_patterns = [
-            r'ביטוח[:\s]+([^\n\r,]+)',  # Hebrew: "ביטוח: זהב"
-            r'insurance[:\s]+([^\n\r,]+)',  # English: "insurance: Gold"
-            r'רמה[:\s]+([^\n\r,]+)',  # Hebrew: "רמה: זהב"
-            r'level[:\s]+([^\n\r,]+)',  # English: "level: Gold"
-            r'זהב|כסף|ארד',  # Hebrew tiers
-            r'gold|silver|bronze',  # English tiers
-        ]
-        
-        for pattern in tier_patterns:
-            match = re.search(pattern, message_content, re.IGNORECASE)
-            if match:
-                extracted_info['insurance_tier'] = match.group(1) if ':' in pattern else match.group(0)
-                break
-        
-        # If we found some information, return it
         if extracted_info:
             logger.info(f"Extracted user info: {extracted_info}")
             return extracted_info
         
-        # Special case: Check if this looks like a complete summary
-        # This handles cases where the user says "here's my info" or similar
-        summary_indicators = [
-            r'הנה.*המידע',  # Hebrew: "הנה המידע"
-            r'here.*info',  # English: "here is the info"
-            r'סיכום.*מידע',  # Hebrew: "סיכום המידע"
-            r'summary.*info',  # English: "summary of info"
-        ]
-        
-        for pattern in summary_indicators:
-            if re.search(pattern, message_content, re.IGNORECASE):
-                logger.info("Detected summary format, attempting comprehensive extraction")
-                # Try to extract any remaining information
-                return extracted_info
-        
-        # Safe logging for Hebrew content
-        try:
-            safe_preview = message_content[:100].encode('ascii', 'ignore').decode('ascii')
-            if safe_preview:
-                logger.info(f"No user info extracted from message: {safe_preview}...")
-            else:
-                logger.info(f"No user info extracted from message: [Hebrew content - length: {len(message_content)}]")
-        except Exception:
-            logger.info(f"No user info extracted from message: [Content length: {len(message_content)}]")
+        logger.info("No user info extracted from message")
         return None
         
     except Exception as e:
         logger.error(f"Error extracting user info: {e}")
+        return None
+
+
+def extract_info_with_ai_prompt(user_input: str) -> Optional[Dict[str, Any]]:
+    """Use AI prompt to extract user information from input text"""
+    try:
+        # Import Azure client here to avoid circular imports
+        from config import get_azure_client
+        
+        client = get_azure_client()
+        if not client:
+            logger.error("Azure OpenAI client not available")
+            return None
+        
+        # Create the extraction prompt
+        extraction_prompt = f"""Given the following user input, extract the user information and return ONLY a valid JSON object with the following structure:
+
+{{
+    "name": "string (first and last name)",
+    "id_number": "string (9-digit ID number)",
+    "gender": "string (male/female or זכר/נקבה)",
+    "age": "integer (age between 0-120)",
+    "hmo_name": "string (HMO name: מכבי/מאוחדת/כללית or Maccabi/Meuhedet/Clalit)",
+    "hmo_card_number": "string (9-digit card number)",
+    "insurance_tier": "string (Gold/Silver/Bronze or זהב/כסף/ארד)"
+}}
+
+Rules:
+1. If a field is not found, set it to null
+2. For name, extract only the actual name (not "היי קוראים לי" or similar phrases)
+3. For HMO name, use only the standard names listed above
+4. For insurance tier, use only the standard tiers listed above
+5. Return ONLY the JSON, no other text
+
+User input: {user_input}
+
+JSON:"""
+
+        # Call Azure OpenAI
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant that extracts user information from text and returns it in JSON format. Always return valid JSON only."},
+                {"role": "user", "content": extraction_prompt}
+            ],
+            temperature=0.1,  # Low temperature for consistent extraction
+            max_tokens=500
+        )
+        
+        # Extract the response content
+        response_text = response.choices[0].message.content.strip()
+        logger.info(f"AI extraction response: {response_text[:200]}...")
+        
+        # Try to parse the JSON response
+        try:
+            # Remove any markdown formatting if present
+            if response_text.startswith("```json"):
+                response_text = response_text[7:]
+            if response_text.endswith("```"):
+                response_text = response_text[:-3]
+            
+            response_text = response_text.strip()
+            
+            # Parse JSON
+            extracted_data = json.loads(response_text)
+            
+            # Validate and clean the extracted data
+            cleaned_data = {}
+            
+            # Clean name - remove extra text
+            if extracted_data.get('name'):
+                name = str(extracted_data['name']).strip()
+                # Remove common prefixes/suffixes
+                name = re.sub(r'^(היי קוראים לי|קוראים לי|אני|שמי)\s*', '', name)
+                name = re.sub(r'\s+(תז|אני בן|זכר|אני בקופת חולים|מספר|זהב).*$', '', name)
+                cleaned_data['name'] = name.strip()
+            
+            # Clean other fields
+            if extracted_data.get('id_number'):
+                cleaned_data['id_number'] = str(extracted_data['id_number']).strip()
+            
+            if extracted_data.get('gender'):
+                gender = str(extracted_data['gender']).strip().lower()
+                # Normalize gender values
+                if gender in ['male', 'm', 'זכר']:
+                    cleaned_data['gender'] = 'זכר'
+                elif gender in ['female', 'f', 'נקבה']:
+                    cleaned_data['gender'] = 'נקבה'
+                else:
+                    cleaned_data['gender'] = extracted_data['gender']
+            
+            if extracted_data.get('age') is not None:
+                try:
+                    age = int(extracted_data['age'])
+                    if 0 <= age <= 120:
+                        cleaned_data['age'] = age
+                except (ValueError, TypeError):
+                    pass
+            
+            if extracted_data.get('hmo_name'):
+                hmo = str(extracted_data['hmo_name']).strip()
+                # Normalize HMO names
+                hmo_lower = hmo.lower()
+                if 'maccabi' in hmo_lower or 'מכבי' in hmo:
+                    cleaned_data['hmo_name'] = 'מכבי'
+                elif 'meuhedet' in hmo_lower or 'מאוחדת' in hmo:
+                    cleaned_data['hmo_name'] = 'מאוחדת'
+                elif 'clalit' in hmo_lower or 'כללית' in hmo:
+                    cleaned_data['hmo_name'] = 'כללית'
+                else:
+                    cleaned_data['hmo_name'] = hmo
+            
+            if extracted_data.get('hmo_card_number'):
+                cleaned_data['hmo_card_number'] = str(extracted_data['hmo_card_number']).strip()
+            
+            if extracted_data.get('insurance_tier'):
+                tier = str(extracted_data['insurance_tier']).strip()
+                # Normalize insurance tiers
+                tier_lower = tier.lower()
+                if 'gold' in tier_lower or 'זהב' in tier:
+                    cleaned_data['insurance_tier'] = 'זהב'
+                elif 'silver' in tier_lower or 'כסף' in tier:
+                    cleaned_data['insurance_tier'] = 'כסף'
+                elif 'bronze' in tier_lower or 'ארד' in tier:
+                    cleaned_data['insurance_tier'] = 'ארד'
+                else:
+                    cleaned_data['insurance_tier'] = tier
+            
+            logger.info(f"Cleaned extracted data: {cleaned_data}")
+            return cleaned_data
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON response: {e}")
+            logger.error(f"Response text: {response_text}")
+            return None
+            
+    except Exception as e:
+        logger.error(f"Error in AI-based extraction: {e}")
         return None
 
 
@@ -343,7 +326,7 @@ def format_conversation_history(conversation_history: List[Any]) -> str:
 
 def validate_phase(phase: str) -> bool:
     """Validate that the phase is valid"""
-    valid_phases = ["info_collection", "qa"]
+    valid_phases = ["info_collection", "validation", "qa"]
     return phase in valid_phases
 
 
