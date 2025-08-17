@@ -147,9 +147,9 @@ async def chat(request: ChatRequest):
                 
                 # Fallback response
                 if request.language == "he":
-                    fallback_response = "מצטער, יש בעיה טכנית. אנא נסה שוב מאוחר יותר."
+                    fallback_response = "מצטער, יש בעיה טכנית. בוא ננסה שוב או נחכה רגע."
                 else:
-                    fallback_response = "Sorry, there's a technical issue. Please try again later."
+                    fallback_response = "Sorry, there's a technical issue. Let's try again or wait a moment."
                 
                 return ChatResponse(
                     response=fallback_response,
@@ -169,9 +169,9 @@ async def chat(request: ChatRequest):
                 logger.info(f"DEBUG: Information incomplete in validation phase, going back to info collection")
                 # Go back to information collection phase
                 if request.language == "he":
-                    response_text = "אני מבין שהמידע לא שלם. אנא ספק את כל המידע הנדרש שוב."
+                    response_text = "אני מבין שהמידע לא שלם. בוא נמשיך לאסוף את המידע החסר בצורה ידידותית."
                 else:
-                    response_text = "I understand the information is incomplete. Please provide all required information again."
+                    response_text = "I understand the information is incomplete. Let's continue collecting the missing information in a friendly way."
                 
                 return ChatResponse(
                     response=response_text,
@@ -289,14 +289,11 @@ async def chat(request: ChatRequest):
                         user_info_complete=False
                     )
             else:
-                logger.info(f"DEBUG: User needs to correct information or confirmation unclear")
-                
-                # User either denied the information or needs to correct it
-                # Go back to information collection phase
+                # User needs to correct information or confirmation unclear
                 if request.language == "he":
-                    response_text = "אני מבין שהמידע צריך תיקון. אנא ספק את המידע הנכון שוב."
+                    response_text = "אני מבין שהמידע צריך תיקון. בוא נתקן אותו יחד בצורה ידידותית."
                 else:
-                    response_text = "I understand the information needs correction. Please provide the correct information again."
+                    response_text = "I understand the information needs correction. Let's fix it together in a friendly way."
                 
                 return ChatResponse(
                     response=response_text,

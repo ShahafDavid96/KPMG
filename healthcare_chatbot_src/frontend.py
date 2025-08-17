@@ -160,6 +160,33 @@ st.markdown("""
         resize: vertical;
     }
     
+    /* RTL textarea with proper number handling */
+    .stTextArea.rtl-text textarea {
+        direction: rtl !important;
+        text-align: right !important;
+        unicode-bidi: bidi-override !important;
+    }
+    
+    /* LTR textarea for better number input */
+    .stTextArea.ltr-text textarea {
+        direction: ltr !important;
+        text-align: left !important;
+        unicode-bidi: normal !important;
+    }
+    
+    /* Smart textarea direction based on content */
+    .stTextArea textarea[data-rtl="true"] {
+        direction: rtl !important;
+        text-align: right !important;
+        unicode-bidi: bidi-override !important;
+    }
+    
+    .stTextArea textarea[data-rtl="false"] {
+        direction: ltr !important;
+        text-align: left !important;
+        unicode-bidi: normal !important;
+    }
+    
     .stButton button {
         font-weight: bold;
         transition: all 0.3s ease;
@@ -258,9 +285,60 @@ document.addEventListener('DOMContentLoaded', function() {
         // Force RTL for textareas
         const textareas = document.querySelectorAll('.stTextArea textarea');
         textareas.forEach(function(textarea) {
-            textarea.style.direction = 'rtl';
-            textarea.style.textAlign = 'right';
-            textarea.style.unicodeBidi = 'bidi-override';
+            // Intelligent direction detection based on content
+            const content = textarea.value || textarea.placeholder || '';
+            
+            // Check if content is primarily numbers or Hebrew
+            const hebrewChars = (content.match(/[\u0590-\u05FF]/g) || []).length;
+            const numericChars = (content.match(/[0-9]/g) || []).length;
+            const totalChars = content.length;
+            
+            // If more than 50% are numbers, use LTR; otherwise use RTL for Hebrew
+            if (numericChars > totalChars * 0.5 || numericChars > hebrewChars * 2) {
+                // Primarily numbers - use LTR
+                textarea.style.direction = 'ltr';
+                textarea.style.textAlign = 'left';
+                textarea.style.unicodeBidi = 'normal';
+                textarea.setAttribute('data-rtl', 'false');
+            } else if (hebrewChars > 0) {
+                // Contains Hebrew - use RTL
+                textarea.style.direction = 'rtl';
+                textarea.style.textAlign = 'right';
+                textarea.style.unicodeBidi = 'bidi-override';
+                textarea.setAttribute('data-rtl', 'true');
+            } else {
+                // Default to LTR for English/numbers
+                textarea.style.direction = 'ltr';
+                textarea.style.textAlign = 'left';
+                textarea.style.unicodeBidi = 'normal';
+                textarea.setAttribute('data-rtl', 'false');
+            }
+            
+            // Add input event listener to dynamically adjust direction
+            textarea.addEventListener('input', function() {
+                // Debounce the direction switching for better performance
+                clearTimeout(this.directionTimeout);
+                this.directionTimeout = setTimeout(() => {
+                    const currentContent = this.value;
+                    const currentHebrewChars = (currentContent.match(/[\u0590-\u05FF]/g) || []).length;
+                    const currentNumericChars = (currentContent.match(/[0-9]/g) || []).length;
+                    const currentTotalChars = currentContent.length;
+                    
+                    if (currentNumericChars > currentTotalChars * 0.5 || currentNumericChars > currentHebrewChars * 2) {
+                        // Primarily numbers - switch to LTR
+                        this.style.direction = 'ltr';
+                        this.style.textAlign = 'left';
+                        this.style.unicodeBidi = 'normal';
+                        this.setAttribute('data-rtl', 'false');
+                    } else if (currentHebrewChars > 0) {
+                        // Contains Hebrew - switch to RTL
+                        this.style.direction = 'rtl';
+                        this.style.textAlign = 'right';
+                        this.style.unicodeBidi = 'bidi-override';
+                        this.setAttribute('data-rtl', 'true');
+                    }
+                }, 100); // 100ms debounce
+            });
         });
     }
     
@@ -698,39 +776,27 @@ def main():
             max_chars=1000
         )
         
-        # Apply RTL styling to the textarea if Hebrew
+        # Apply intelligent RTL/LTR styling to the textarea
         if is_hebrew:
             st.markdown("""
             <style>
-            /* Target Streamlit textarea specifically */
+            /* Smart textarea direction - will be controlled by JavaScript */
             .stTextArea textarea {
-                direction: rtl !important;
-                text-align: right !important;
-                unicode-bidi: bidi-override !important;
-            }
-            
-            /* Target the textarea container */
-            .stTextArea > div > div > textarea {
-                direction: rtl !important;
-                text-align: right !important;
-                unicode-bidi: bidi-override !important;
-            }
-            
-            /* Force RTL for the textarea input */
-            .stTextArea textarea[data-testid="stTextArea"] {
-                direction: rtl !important;
-                text-align: right !important;
-                unicode-bidi: bidi-override !important;
-            }
-            
-            /* Override any Streamlit default styles */
-            .stTextArea textarea,
-            .stTextArea > div > div > textarea,
-            .stTextArea textarea[data-testid="stTextArea"] {
-                direction: rtl !important;
-                text-align: right !important;
-                unicode-bidi: bidi-override !important;
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+                transition: all 0.3s ease !important;
+            }
+            
+            /* Initial state - will be overridden by JavaScript */
+            .stTextArea textarea[data-rtl="true"] {
+                direction: rtl !important;
+                text-align: right !important;
+                unicode-bidi: bidi-override !important;
+            }
+            
+            .stTextArea textarea[data-rtl="false"] {
+                direction: ltr !important;
+                text-align: left !important;
+                unicode-bidi: normal !important;
             }
             </style>
             """, unsafe_allow_html=True)
@@ -747,6 +813,15 @@ def main():
                 """, unsafe_allow_html=True)
             else:
                 st.caption(f"Characters: {char_count}/1000")
+        
+        # Show direction indicator for Hebrew mode
+        if is_hebrew:
+            st.markdown("""
+            <div class="rtl-text">
+                <small style="color: #666; font-style: italic;">
+                </small>
+            </div>
+            """, unsafe_allow_html=True)
         
         col1, col2 = st.columns([1, 4])
         
@@ -794,7 +869,8 @@ def main():
         if st.session_state.language == "he":
             initial_message = """מעולה! עכשיו אני יכול לעזור לך עם שירותי הבריאות שלך.
 
-אנא ספק את הפרטים הבאים:
+כדי שאוכל לתת לך את המידע המדויק ביותר, אני צריך כמה פרטים:
+
 1. שם פרטי ושם משפחה
 2. מספר תעודת זהות (9 ספרות)
 3. מגדר
@@ -803,11 +879,12 @@ def main():
 6. מספר כרטיס קופת החולים (9 ספרות)
 7. רמת ביטוח (זהב/כסף/ארד)
 
-אנא ספק את כל המידע הזה בבת אחת."""
+אם תרצה, תוכל לספק את כל המידע בבת אחת, או שאני אעזור לך למלא אותו שלב אחר שלב. איך תרצה להתחיל?"""
         else:
             initial_message = """Great! Now I can help you with your healthcare services.
 
-Please provide the following details:
+To provide you with the most accurate information, I need a few details:
+
 1. First and last name
 2. ID number (9 digits)
 3. Gender
@@ -816,7 +893,7 @@ Please provide the following details:
 6. HMO card number (9 digits)
 7. Insurance tier (Gold/Silver/Bronze)
 
-Please provide all this information at once."""
+If you'd like, you can provide all this information at once, or I can help you fill it out step by step. How would you like to start?"""
         
         add_message_to_history("assistant", initial_message)
         st.rerun()
