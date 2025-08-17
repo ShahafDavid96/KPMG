@@ -1,4 +1,4 @@
-# KPMG - AI-Powered Document Processing & Healthcare Information System
+# AI-Powered Document Processing & Healthcare Information System
 
 ## Project Overview
 
