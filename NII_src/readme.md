@@ -1,5 +1,5 @@
 
-# Phase 1: National Insurance Institute Form Extraction & Validation
+# NII: National Insurance Institute Form Extraction & Validation
 
 ## 📋 Project Overview
 
@@ -82,7 +82,7 @@ This application is a sophisticated document processing pipeline that extracts a
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd phase1_src
+cd NII_src
 
 # Install dependencies
 pip install -r requirements.txt

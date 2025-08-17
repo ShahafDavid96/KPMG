@@ -112,7 +112,7 @@ This project is a **microservice-based healthcare chatbot system** designed to p
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd Home-Assignment-GenAI-KPMG/phase2_src
+cd Home-Assignment-GenAI-KPMG/healthcare_chatbot_src
 
 # Create virtual environment
 python -m venv venv
@@ -206,7 +206,7 @@ curl http://localhost:8000/api/v1/chat -X POST -H "Content-Type: application/jso
 
 ## 📁 Project Structure
 ```
-phase2_src/
+healthcare_chatbot_src/
 ├── main.py              # FastAPI application entry point
 ├── api.py               # API endpoints and chat logic
 ├── rag_kb.py            # RAG knowledge base implementation

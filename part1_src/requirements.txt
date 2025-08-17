@@ -1,5 +1,0 @@
-# Phase 1 specific dependencies
-# Note: Core dependencies are now in the main requirements.txt
-
-# Additional dependencies specific to phase1
-# (Add any phase1-specific packages here if needed)

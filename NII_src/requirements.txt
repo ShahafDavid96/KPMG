@@ -1,0 +1,5 @@
+# Phase 1 specific dependencies
+# Note: Core dependencies are now in the main requirements.txt
+
+# Additional dependencies specific to NII
+# (Add any NII-specific packages here if needed)

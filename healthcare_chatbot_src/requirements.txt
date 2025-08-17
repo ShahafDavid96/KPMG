@@ -1,0 +1,5 @@
+# Phase 2 specific dependencies
+# Note: Core dependencies are now in the main requirements.txt
+
+# Additional dependencies specific to healthcare_chatbot
+# (Add any healthcare_chatbot-specific packages here if needed)

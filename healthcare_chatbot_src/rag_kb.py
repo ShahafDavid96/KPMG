@@ -28,7 +28,7 @@ class RAGKB:
         self.embeddings = []
         self.faiss_index = None
         self.azure_client = None
-        self.data_dir = Path(__file__).parent.parent / "phase2_data"
+        self.data_dir = Path(__file__).parent.parent / "healthcare_chatbot_data"
         
         # Initialize Azure client if needed
         if use_azure_embeddings:
