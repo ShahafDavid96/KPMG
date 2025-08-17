@@ -1,17 +1,17 @@
 # Medical Services ChatBot - Healthcare Information System
 
-## 🏥 General Explanation
+## General Explanation
 
 This project is a **microservice-based healthcare chatbot system** designed to provide personalized medical services information for users in Israel. The system helps users understand their healthcare coverage, available services, and benefits based on their HMO (Health Maintenance Organization) and insurance tier.
 
-### **Key Features:**
+### Key Features:
 - **Bilingual Support**: Hebrew and English interfaces
 - **Personalized Responses**: Tailored information based on user's HMO and insurance details
 - **RAG-Powered**: Uses Retrieval Augmented Generation for accurate, context-aware responses
 - **Memory Efficient**: Optimized to handle large healthcare datasets with minimal RAM usage
 - **Real-time Chat**: Interactive conversation flow with natural language processing
 
-### **What It Does:**
+### What It Does:
 1. **Information Collection**: Gathers user's healthcare details (HMO, insurance tier, personal info)
 2. **Service Queries**: Answers questions about available medical services, coverage, and benefits
 3. **HMO-Specific Information**: Provides targeted information for Maccabi, Meuhedet, and Clalit
@@ -19,7 +19,7 @@ This project is a **microservice-based healthcare chatbot system** designed to p
 
 ---
 
-## 🏗️ Microservice Architecture
+## Microservice Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -77,38 +77,38 @@ This project is a **microservice-based healthcare chatbot system** designed to p
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### **Architecture Components:**
+### Architecture Components:
 
-#### **Frontend (Streamlit)**
+#### Frontend (Streamlit)
 - **Purpose**: User interface and interaction
 - **Features**: Language switching, conversation display, input handling
 - **Technology**: Streamlit with custom CSS and JavaScript
 
-#### **API Layer (FastAPI)**
+#### API Layer (FastAPI)
 - **Purpose**: Backend logic and API endpoints
 - **Features**: Chat processing, user validation, response generation
 - **Technology**: FastAPI with Azure OpenAI integration
 
-#### **Knowledge Base (RAG)**
+#### Knowledge Base (RAG)
 - **Purpose**: Information retrieval and storage
 - **Features**: Vector search, HMO filtering, content chunking
 - **Technology**: FAISS, Azure OpenAI embeddings, custom chunking
 
-#### **Data Layer**
+#### Data Layer
 - **Purpose**: Raw healthcare service information
 - **Content**: HTML files with service details, pricing, and coverage
 - **Structure**: 6 services × 3 HMOs = 18 total chunks
 
 ---
 
-## 🚀 Installation and Run Instructions
+## Installation and Run Instructions
 
-### **Prerequisites**
+### Prerequisites
 - Python 3.8+
 - pip package manager
 - Access to Azure OpenAI (optional, fallback available)
 
-### **1. Clone and Setup**
+### 1. Clone and Setup
 ```bash
 # Clone the repository
 git clone <repository-url>
@@ -127,7 +127,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### **2. Configuration**
+### 2. Configuration
 ```bash
 # Copy and configure environment variables
 cp config.py.example config.py
@@ -136,9 +136,9 @@ cp config.py.example config.py
 # If not configured, the system will use fallback embeddings
 ```
 
-### **3. Run the System**
+### 3. Run the System
 
-#### **Option A: Using Start Scripts**
+#### Option A: Using Start Scripts
 ```bash
 # Windows
 start_system.bat
@@ -150,7 +150,7 @@ start_system.bat
 python start_system.py
 ```
 
-#### **Option B: Manual Start**
+#### Option B: Manual Start
 ```bash
 # Terminal 1: Start the API backend
 python main.py
@@ -159,12 +159,12 @@ python main.py
 streamlit run frontend.py
 ```
 
-### **4. Access the Application**
+### 4. Access the Application
 - **Frontend**: http://localhost:8501
 - **API**: http://localhost:8000
 - **API Docs**: http://localhost:8000/docs
 
-### **5. System Testing**
+### 5. System Testing
 ```bash
 # Run comprehensive system tests
 python test_system.py
@@ -173,21 +173,21 @@ python test_system.py
 python -c "from rag_kb import RAGKB; kb = RAGKB(); print(kb.get_stats())"
 ```
 
-### **6. Usage Flow**
+### 6. Usage Flow
 1. **Open Frontend**: Navigate to http://localhost:8501
 2. **Select Language**: Choose Hebrew or English
 3. **Provide Information**: Enter your healthcare details
 4. **Ask Questions**: Query about services, coverage, and benefits
 5. **Get Responses**: Receive personalized, HMO-specific information
 
-### **7. Troubleshooting**
+### 7. Troubleshooting
 
-#### **Common Issues:**
+#### Common Issues:
 - **Port Already in Use**: Change ports in `main.py` and `frontend.py`
 - **Azure OpenAI Errors**: System automatically falls back to local embeddings
 - **Memory Issues**: System is optimized for minimal RAM usage (target: <1GB)
 
-#### **Health Checks:**
+#### Health Checks:
 ```bash
 # Check API health
 curl http://localhost:8000/api/v1/health
@@ -196,7 +196,7 @@ curl http://localhost:8000/api/v1/health
 curl http://localhost:8000/api/v1/chat -X POST -H "Content-Type: application/json" -d '{"message": "test"}'
 ```
 
-### **8. System Requirements**
+### 8. System Requirements
 - **RAM**: Minimum 2GB, Recommended 4GB+
 - **Storage**: 100MB for application + data
 - **Network**: Internet access for Azure OpenAI (optional)
@@ -204,7 +204,7 @@ curl http://localhost:8000/api/v1/chat -X POST -H "Content-Type: application/jso
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 ```
 healthcare_chatbot_src/
 ├── main.py              # FastAPI application entry point
@@ -221,4 +221,4 @@ healthcare_chatbot_src/
 └── README.md           # This file
 ```
 
-The system is designed to be **production-ready** with proper error handling, logging, and fallback mechanisms. It provides a robust foundation for healthcare information services while maintaining simplicity and efficiency.
+The system provides a foundation for healthcare information services while maintaining simplicity and efficiency.

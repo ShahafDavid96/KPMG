@@ -2,82 +2,53 @@
 
 ## Project Overview
 
-This repository contains two sophisticated AI-powered systems developed for KPMG, showcasing advanced document processing and healthcare information management capabilities:
+This repository contains two AI-powered systems developed for KPMG:
 
-1. **NII (National Insurance Institute) Forms Extractor** - Intelligent document processing for Israeli insurance forms
-2. **Healthcare Chatbot** - AI-powered medical services information system for Israeli health funds
+1. **NII (National Insurance Institute) Forms Extractor** - Document processing for Israeli insurance forms
+2. **Healthcare Chatbot** - Medical services information system for Israeli health funds
 
-Both systems leverage cutting-edge AI technologies including Azure AI services, OpenAI integration, and advanced natural language processing.
-
----
-
-## System Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        KPMG PROJECT                            │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │              NII Forms Extractor                        │   │
-│  │  • Azure Document Intelligence                          │   │
-│  │  • Azure OpenAI Integration                             │   │
-│  │  • Multi-language Support (Hebrew/English)              │   │
-│  │  • Intelligent Data Validation                          │   │
-│  └─────────────────────────────────────────────────────────┘   │
-│                                                               │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │              Healthcare Chatbot                         │   │
-│  │  • RAG-Powered Knowledge Base                          │   │
-│  │  • HMO-Specific Information                            │   │
-│  │  • Bilingual Interface                                 │   │
-│  │  • Microservice Architecture                            │   │
-│  └─────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────┘
-```
+Both systems use Azure AI services for enhanced capabilities.
 
 ---
 
 ## System 1: NII Forms Extractor
 
 ### Purpose
-Advanced document processing system for extracting and validating data from **Bituach Leumi Form 283** (National Insurance Institute accident report forms).
+Document processing system for extracting and validating data from **Bituach Leumi Form 283** (National Insurance Institute accident report forms).
 
 ### Key Features
-- **Intelligent OCR**: Azure Document Intelligence for high-accuracy text extraction
-- **AI-Powered Extraction**: Azure OpenAI for intelligent field identification and data extraction
-- **Multi-language Support**: Automatic Hebrew/English language detection and processing
-- **Comprehensive Validation**: Schema compliance, completeness scoring, and accuracy validation
-- **Smart Data Correction**: Automatic phone number formatting and data standardization
-- **Modern UI**: Streamlit-based drag-and-drop interface with real-time processing
+- **OCR Processing**: Azure Document Intelligence for text extraction
+- **Field Extraction**: Azure OpenAI for intelligent field identification
+- **Multi-language Support**: Hebrew and English form processing
+- **Data Validation**: Schema compliance and completeness scoring
+- **Phone Number Correction**: Automatic formatting for Israeli phone numbers
+- **Web Interface**: Streamlit-based drag-and-drop interface
 
 ### Technology Stack
 - **Backend**: Python with Azure AI services
-- **Frontend**: Streamlit with custom CSS
+- **Frontend**: Streamlit
 - **AI Services**: Azure Document Intelligence, Azure OpenAI
-- **Validation**: Pydantic models with custom validation rules
-- **Data Processing**: Intelligent text extraction and cleaning
+- **Validation**: Pydantic models
 
 ---
 
 ## System 2: Healthcare Chatbot
 
 ### Purpose
-AI-powered healthcare information system providing personalized medical services information for users in Israel based on their HMO (Health Maintenance Organization) and insurance details.
+Healthcare information system providing medical services information for users in Israel based on their HMO and insurance details.
 
 ### Key Features
-- **Intelligent Chat Interface**: Natural language processing for healthcare queries
-- **HMO-Specific Information**: Tailored responses for Maccabi, Meuhedet, and Clalit
-- **RAG-Powered Search**: Retrieval Augmented Generation for accurate, context-aware responses
+- **Chat Interface**: Natural language processing for healthcare queries
+- **HMO-Specific Information**: Responses for Maccabi, Meuhedet, and Clalit
+- **RAG Search**: Retrieval Augmented Generation for context-aware responses
 - **Bilingual Support**: Hebrew and English interfaces
-- **Comprehensive Coverage**: Dental, optometry, pregnancy, alternative medicine, workshops, and communication clinic services
-- **Memory Efficient**: Optimized for minimal RAM usage with vector search capabilities
+- **Service Coverage**: Dental, optometry, pregnancy, alternative medicine, workshops, communication clinic
 
 ### Technology Stack
 - **Backend**: FastAPI with Azure OpenAI integration
-- **Frontend**: Streamlit with custom UI components
+- **Frontend**: Streamlit
 - **Knowledge Base**: RAG system with FAISS vector search
 - **AI Services**: Azure OpenAI embeddings and chat completion
-- **Data Processing**: HTML content chunking and vectorization
 
 ---
 
@@ -85,7 +56,7 @@ AI-powered healthcare information system providing personalized medical services
 
 ### Prerequisites
 - Python 3.8+
-- Azure subscription with AI services (optional)
+- Azure subscription with AI services
 - Git
 
 ### Installation
@@ -127,8 +98,7 @@ pip install -r requirements.txt
 # Copy environment template
 cp env.example .env
 
-# Edit .env with your Azure credentials (optional)
-# If not configured, systems will use fallback mechanisms
+# Edit .env with your Azure credentials
 ```
 
 ---
@@ -141,7 +111,6 @@ cd NII_src
 streamlit run app.py
 ```
 - **Access**: http://localhost:8501
-- **Features**: Drag-and-drop file upload, real-time processing, validation results
 
 ### Healthcare Chatbot
 ```bash
@@ -163,40 +132,40 @@ streamlit run frontend.py
 
 ```
 KPMG/
-├── README.md                    # This file - Project overview
-├── requirements.txt             # Core project dependencies
-├── env.example                  # Environment variables template
+├── README.md                    # Project overview
+├── requirements.txt             # Core dependencies
+├── env.example                  # Environment template
 │
-├── NII_data/                    # Sample insurance forms (PDFs)
-├── NII_src/                     # NII Forms Extractor source code
-│   ├── app.py                   # Streamlit main application
+├── NII_data/                    # Sample insurance forms
+├── NII_src/                     # NII Forms Extractor
+│   ├── app.py                   # Streamlit application
 │   ├── form_extractor.py        # Core extraction logic
-│   ├── validator.py             # Data validation engine
-│   ├── config.py                # Configuration and schemas
-│   ├── prompt.txt               # AI prompts for extraction
-│   └── readme.md                # Detailed NII documentation
+│   ├── validator.py             # Data validation
+│   ├── config.py                # Configuration
+│   ├── prompt.txt               # AI prompts
+│   └── readme.md                # Detailed documentation
 │
-├── healthcare_chatbot_data/     # Healthcare service HTML files
-├── healthcare_chatbot_src/      # Healthcare Chatbot source code
-│   ├── main.py                  # FastAPI application entry point
-│   ├── api.py                   # API endpoints and chat logic
-│   ├── frontend.py              # Streamlit user interface
-│   ├── rag_kb.py                # RAG knowledge base implementation
-│   ├── models.py                # Data models and schemas
-│   ├── config.py                # Configuration and Azure setup
-│   ├── prompts.py               # LLM prompts and language definitions
+├── healthcare_chatbot_data/     # Healthcare service files
+├── healthcare_chatbot_src/      # Healthcare Chatbot
+│   ├── main.py                  # FastAPI entry point
+│   ├── api.py                   # API endpoints
+│   ├── frontend.py              # Streamlit interface
+│   ├── rag_kb.py                # RAG knowledge base
+│   ├── models.py                # Data models
+│   ├── config.py                # Configuration
+│   ├── prompts.py               # LLM prompts
 │   ├── utils.py                 # Utility functions
-│   └── README.md                # Detailed Healthcare Chatbot documentation
+│   └── README.md                # Detailed documentation
 │
-└── .venv/                       # Virtual environment (created during setup)
+└── .venv/                       # Virtual environment
 ```
 
 ---
 
 ## Configuration
 
-### Azure AI Services (Optional)
-Both systems can work with Azure AI services for enhanced capabilities:
+### Azure AI Services
+Both systems require Azure AI services:
 
 ```bash
 # Azure Document Intelligence (for NII)
@@ -208,10 +177,6 @@ AZURE_OPENAI_ENDPOINT=your_endpoint
 AZURE_OPENAI_API_KEY=your_api_key
 AZURE_OPENAI_DEPLOYMENT_NAME=your_deployment
 ```
-
-### Fallback Mechanisms
-- **NII System**: Falls back to basic text extraction if Azure services unavailable
-- **Healthcare Chatbot**: Uses local embeddings and keyword search if Azure OpenAI unavailable
 
 ---
 
@@ -233,30 +198,13 @@ python test_multiple_users.py
 
 ---
 
-## Performance & Scalability
-
-### NII Forms Extractor
-- **Processing Speed**: Real-time document processing
-- **Accuracy**: High-precision field extraction with validation
-- **Scalability**: Handles multiple document formats and languages
-
-### Healthcare Chatbot
-- **Response Time**: Sub-second query responses
-- **Memory Usage**: Optimized for minimal RAM usage (<1GB target)
-- **Concurrent Users**: Supports multiple simultaneous users
-- **Knowledge Base**: 18 optimized chunks covering 6 services × 3 HMOs
-
----
-
 ## Documentation
 
 - **This README**: Project overview and setup instructions
 - **NII_src/readme.md**: Detailed NII system documentation
 - **healthcare_chatbot_src/README.md**: Detailed Healthcare Chatbot documentation
-- **Code Comments**: Comprehensive inline documentation
 
 ---
 
 **Version**: 1.0  
-**Last Updated**: August 2025  
-**Status**: Production Ready with Enhanced Features
+**Last Updated**: August 2025
