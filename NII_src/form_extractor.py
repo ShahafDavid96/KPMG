@@ -298,8 +298,8 @@ def clean_markdown_content(markdown_text):
     cleaned_text = re.sub(r'(JOB_TYPE_PREFIX: כאשר עבדתי ב)\s+([א-ת\s]+)', r'\1 JOB_TYPE_VALUE: \2', cleaned_text)
     
     # Also add a more specific marker for the exact pattern we found
-    # Look for: "כאשר עבדתי ב" + "ירקנייה" (or similar job type values)
-    cleaned_text = re.sub(r'(כאשר עבדתי ב)\s+(ירקנייה|במשרד|בחנות|בבית|בשדה|בכביש)', r'JOB_TYPE_FIELD: \1 \2', cleaned_text)
+    # Look for: "כאשר עבדתי ב" + job type (or similar work-related patterns)
+    cleaned_text = re.sub(r'(כאשר עבדתי ב)\s+([^\n\r]+)', r'JOB_TYPE_FIELD: \1 \2', cleaned_text)
     
     # Also mark work location to distinguish it from job type
     # Look for common work location patterns that might be confused with job type
@@ -459,7 +459,7 @@ CLEANED OCR Text (Markdown format removed, checkboxes normalized):
 ---
 
 CRITICAL INSTRUCTION: 
-- The text contains pre-processed markers like "JOB_TYPE_VALUE: ירקנייה" and "WORK_LOCATION: במפעל"
+- The text contains pre-processed markers for job type and work location fields
 - You MUST extract these exact values from the markers
 - Do NOT try to re-analyze or re-parse the Hebrew text
 - Use ONLY the values that appear after the markers
@@ -473,29 +473,16 @@ IMPORTANT EXTRACTION NOTES:
 
 SPECIFIC FORM STRUCTURE:
 1. **Work Location & Job Type**: 
-   - **CRITICAL**: You MUST use the OCR markers that are already provided in the text!
-   - **Job Type**: Look for "JOB_TYPE_VALUE:" in the text - this is the EXACT value to extract
-   - **Work Location**: Look for "WORK_LOCATION:" in the text - this is the EXACT value to extract
-   - **OCR MARKERS ARE PROVIDED**: The text already contains clear markers like "JOB_TYPE_VALUE: ירקנייה" and "WORK_LOCATION: במפעל"
-   - **DO NOT IGNORE MARKERS**: Use these exact values, do not try to re-parse the text
+   - **Job Type**: Look for the actual job type/occupation mentioned in the form
+   - **Work Location**: Look for the actual work location mentioned in the form
+   - **IMPORTANT**: These are separate fields - do not confuse them
+   - Extract the actual text values as they appear in the form
+   - If a field is not found, use empty string ""
    
-   **EXACT EXTRACTION FROM MARKERS**:
-   - Find "JOB_TYPE_VALUE: [value]" → Extract [value] as jobType
-   - Find "WORK_LOCATION: [value]" → Extract [value] as workLocation
-   
-   **EXAMPLE FROM CURRENT TEXT**:
-   - Text shows: "JOB_TYPE_VALUE: ירקנייה" → jobType = "ירקנייה" ✅
-   - Text shows: "WORK_LOCATION: במפעל" → workLocation = "במפעל" ✅
-   
-   **CRITICAL RULES**:
-   - NEVER extract "במפעל" as jobType (it's the work location)
-   - NEVER extract "ירקנייה" as workLocation (it's the job type)
-   - Use ONLY the OCR markers provided
-   - Do not re-analyze or re-parse the text
-   
-   **EXACT VALUES TO EXTRACT**:
-   - jobType = "ירקנייה" (from JOB_TYPE_VALUE marker)
-   - workLocation = "במפעל" (from WORK_LOCATION marker)
+   **EXTRACTION GUIDELINES**:
+   - Job type is usually the person's occupation (e.g., "עובד", "פקיד", "נהג", etc.)
+   - Work location is usually the place where they work (e.g., "במפעל", "במשרד", "בחנות", etc.)
+   - Do not make assumptions - only extract what is actually written
 
 2. **Accident Location**: 
    - This is a checkbox field with options like:
@@ -507,54 +494,37 @@ SPECIFIC FORM STRUCTURE:
    - **CRITICAL**: If "אחר" (Other) is CHECKED, extract the free text that appears next to it
    - If any other option is CHECKED, extract that option's text
    - Do NOT extract the label "מקום התאונה" (Place of Accident)
-   
-   **IMPORTANT: OCR LIMITATION HANDLING**:
-   - Sometimes OCR misses checkbox options, especially "במפעל"
-   - If you see "ACCIDENT_LOCATION_SECTION: מקום התאונה: (NOTE: 'במפעל' option may be missing from OCR)"
-   - AND if the context suggests this is a workplace accident (job type, work location, etc.)
-   - THEN consider "במפעל" as the likely accident location
+   - If no checkbox is clearly checked, use empty string ""
    
    **CRITICAL: AVOID WRONG EXTRACTION**:
    - Do NOT extract "תאונה בדרך ללא רכב" from the medical institution section
    - This text appears in the medical section but is NOT the accident location
    - The accident location should come from the checkbox section above
-   
-   **Examples**:
-   - If "במפעל" is CHECKED → accidentLocation = "במפעל"
-   - If "אחר" is CHECKED and free text shows "בחצר הבית" → accidentLocation = "בחצר הבית"
-   - If "ת. דרכים בעבודה" is CHECKED → accidentLocation = "ת. דרכים בעבודה"
-   - If no checkbox is clearly checked BUT context suggests workplace accident → accidentLocation = "במפעל"
 
 3. **Medical Institution Fields**:
-   - **CRITICAL**: Use the OCR markers for medical institution section!
-   - **Health Fund Member**: Look for "CHECKED_MEDICAL:" markers in the medical section
-     * **ONLY** use "CHECKED_MEDICAL: [name]" markers - do NOT use "HEALTH_FUND_OPTION:" markers
-     * If you see "CHECKED_MEDICAL: כללית" → healthFundMember = "כללית" ✅
-     * If you see "CHECKED_MEDICAL: לאומית" → healthFundMember = "לאומית" ✅
-     * If you see "CHECKED_MEDICAL: מכבי" → healthFundMember = "מכבי" ✅
-     * If you see "CHECKED_MEDICAL: מאוחדת" → healthFundMember = "מאוחדת" ✅
-     * **IMPORTANT**: Do NOT extract from "HEALTH_FUND_OPTION:" markers - these are just available options, not the selected one
-     * **CRITICAL**: The checked checkbox is marked with "CHECKED_MEDICAL:" - use ONLY that value
-   - **Nature of Accident**: Look for "ACCIDENT_NATURE_VALUE:" marker
-     * This should be the text that appears AFTER the "מהות התאונה" label
-     * Do NOT extract "תאונה בדרך ללא רכב" from other parts of the form
-     * Look specifically for "ACCIDENT_NATURE_VALUE: [text]" marker
+   - **Health Fund Member**: Look for the actual checked health fund option
+     * Common options: כללית, לאומית, מכבי, מאוחדת
+     * Extract only the checked/selected option
+     * If no option is clearly checked, use empty string ""
+   - **Nature of Accident**: Look for the actual description of the accident nature
+     * This should be the text that appears after the "מהות התאונה" label
+     * Extract the actual text as written
+     * If not found, use empty string ""
    - **Medical Diagnoses**: Usually empty in these forms, use empty string ""
 
 4. **Date and Time**: 
    - Extract dates in DD.MM.YYYY format
    - Extract times in HH:MM format
    - These are separate fields
+   - If not found, use empty string ""
 
 Return ONLY the JSON object, no additional text
 
 FINAL REMINDER:
-- Use ONLY the OCR markers provided in the text
-- jobType = "ירקנייה" (from JOB_TYPE_VALUE marker)
-- workLocation = "במפעל" (from WORK_LOCATION marker)
-- healthFundMember = "כללית" (from CHECKED_MEDICAL marker)
-- natureOfAccident = [value from ACCIDENT_NATURE_VALUE marker]
-- Do NOT re-parse or re-analyze the Hebrew text
+- Extract ONLY what is actually written in the form
+- Do not make assumptions or use default values
+- If a field is not found, use empty string ""
+- Preserve the exact text as it appears in the form
 
 Extract the form data according to the schema above."""
         

@@ -192,8 +192,8 @@ python test_simple.py
 ### Healthcare Chatbot Testing
 ```bash
 cd healthcare_chatbot_src
-python test_system.py
-python test_multiple_users.py
+cd tests
+python test_all.py
 ```
 
 ---
